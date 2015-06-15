@@ -15,18 +15,6 @@
  limitations under the License.
 """
 
-from cortex_m import CortexM
-
-class W7500(CortexM):
-
-    memoryMapXML =  """<?xml version="1.0"?>
-<!DOCTYPE memory-map PUBLIC "+//IDN gnu.org//DTD GDB Memory Map V1.0//EN" "http://sourceware.org/gdb/gdb-memory-map.dtd">
-<memory-map>
-    <memory type="flash" start="0x0" length="0x20000"> <property name="blocksize">0x100</property></memory>
-    <memory type="ram" start="0x20000000" length="0x4000"> </memory>
-</memory-map>
-"""
-    
-    def __init__(self, transport):
-        super(W7500, self).__init__(transport)
+class TransferError(ValueError):
+    pass
 

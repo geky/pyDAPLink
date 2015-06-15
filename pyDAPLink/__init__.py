@@ -14,26 +14,10 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
-from struct import unpack
 
-with open("main.bin", "rb") as f:
-    data = f.read()
+from daplink import DAPLink, READ_START, READ_NOW, READ_END
+from errors import TransferError
 
-words = len(data) / 4
-str = "<L%i" % words
-print("Data length %i" % len(data))
-data = unpack("<%iL" % words, data)
 
-str = "analyzer = (\n    "
-count = 0
-for val in data:
-    if count % 8 == 7:
-        str += "0x{:08x},\n    ".format(val)
-    else:
-        str += "0x{:08x}, ".format(val)
-    count += 1
-str += "\n    )"
-data = str
+from ._version import version as __version__
 
-with open("main.py", "wb") as f:
-    f.write(data)

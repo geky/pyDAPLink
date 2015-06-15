@@ -16,9 +16,19 @@
 """
 
 from cmsis_dap_core import CMSIS_DAP_Protocol
-from transport import Transport, TransferError, READ_START, READ_NOW, READ_END
+from errors import TransferError
 import logging
 from time import sleep
+
+# Read modes:
+
+# Start a read.  This must be followed by READ_END of the
+# same type and in the same order
+READ_START = 1
+# Read immediately
+READ_NOW = 2
+# Get the result of a read started with READ_START
+READ_END = 3
 
 # !! This value are A[2:3] and not A[3:2]
 DP_REG = {'IDCODE' : 0x00,
@@ -77,12 +87,11 @@ CTRLSTAT_STICKYERR = 0x00000020
 
 COMMANDS_PER_DAP_TRANSFER = 12
 
-class CMSIS_DAP(Transport):
+class CMSIS_DAP(object):
     """
     This class implements the CMSIS-DAP protocol
     """
     def __init__(self, interface):
-        super(CMSIS_DAP, self).__init__(interface)
         self.protocol = CMSIS_DAP_Protocol(interface)
         self.packet_max_count = 0
         self.packet_max_size = 0

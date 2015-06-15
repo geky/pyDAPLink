@@ -1,3 +1,0 @@
-recursive-include binaries *
-recursive-include elf_files *
-recursive-include pyOCD *.ld *.txt *.c *.bat

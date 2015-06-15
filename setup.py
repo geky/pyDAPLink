@@ -25,17 +25,17 @@ install_requires = dict(
 )
 
 setup(
-    name="pyOCD",
+    name="pyDAPLink",
     use_scm_version={
         'local_scheme': 'dirty-tag',
-        'write_to': 'pyOCD/_version.py'
+        'write_to': 'pyDAPLink/_version.py'
     },
     setup_requires=['setuptools-scm!=1.5.3,!=1.5.4'],
     description="CMSIS-DAP debugger for Python",
     long_description=open('README.rst', 'Ur').read(),
     author="samux, emilmont",
     author_email="Samuel.Mokrani@arm.com, Emilio.Monti@arm.com",
-    url='https://github.com/mbedmicro/pyOCD',
+    url='https://github.com/mbedmicro/pyDAPLink',
     license="Apache 2.0",
     install_requires=install_requires[sys.platform] + ['intelhex'],
     classifiers=[
@@ -45,13 +45,6 @@ setup(
     ],
     extras_require={
         'dissassembler': ['capstone']
-    },
-    entry_points={
-        'console_scripts': [
-            'pyocd-gdbserver = pyOCD.tools.gdb_server:main',
-            'pyocd-flashtool = pyOCD.tools.flash_tool:main',
-            'pyocd-tool = pyOCD.tools.pyocd:main',
-        ],
     },
     use_2to3=True,
     packages=find_packages(),
