@@ -56,7 +56,7 @@ class PyWinUSB(Interface):
         self.device.open()
         
     @staticmethod
-    def getAllConnectedInterface(vid, pid):
+    def getConnectedInterfaces(vid, pid):
         """
         returns all the connected devices which matches PyWinUSB.vid/PyWinUSB.pid.
         returns an array of PyWinUSB (Interface) objects

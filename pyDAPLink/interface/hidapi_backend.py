@@ -47,7 +47,7 @@ class HidApiUSB(Interface):
         pass
 
     @staticmethod
-    def getAllConnectedInterface(vid, pid):
+    def getConnectedInterfaces(vid, pid):
         """
         returns all the connected devices which matches HidApiUSB.vid/HidApiUSB.pid.
         returns an array of HidApiUSB (Interface) objects

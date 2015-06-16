@@ -64,7 +64,7 @@ class PyUSB(Interface):
                 self.rcv_data.append(self.ep_in.read(self.ep_in.wMaxPacketSize, -1))
 
     @staticmethod
-    def getAllConnectedInterface(vid, pid):
+    def getConnectedInterfaces(vid, pid):
         """
         returns all the connected devices which matches PyUSB.vid/PyUSB.pid.
         returns an array of PyUSB (Interface) objects
