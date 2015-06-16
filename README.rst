@@ -2,7 +2,7 @@ pyDAPLink
 =========
 
 pyDAPLink is an Open Source python 2.7 based library for communicating with 
-an ARM Cortex-M microcontrollers using CMSIS-DAP. Linux, OSX and Windows are 
+ARM Cortex-M microcontrollers using CMSIS-DAP. Linux, OSX and Windows are 
 supported.
 
 Installation

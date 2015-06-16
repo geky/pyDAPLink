@@ -31,21 +31,18 @@ setup(
         'write_to': 'pyDAPLink/_version.py'
     },
     setup_requires=['setuptools-scm!=1.5.3,!=1.5.4'],
-    description="CMSIS-DAP debugger for Python",
+    description="CMSIS-DAP communication in Python",
     long_description=open('README.rst', 'Ur').read(),
     author="samux, emilmont",
     author_email="Samuel.Mokrani@arm.com, Emilio.Monti@arm.com",
     url='https://github.com/mbedmicro/pyDAPLink',
     license="Apache 2.0",
-    install_requires=install_requires[sys.platform] + ['intelhex'],
+    install_requires=install_requires[sys.platform],
     classifiers=[
         "Development Status :: 4 - Beta",
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python",
     ],
-    extras_require={
-        'dissassembler': ['capstone']
-    },
     use_2to3=True,
     packages=find_packages(),
     include_package_data=True,  # include files from MANIFEST.in
