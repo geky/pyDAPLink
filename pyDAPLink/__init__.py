@@ -15,7 +15,9 @@
  limitations under the License.
 """
 
-from daplink import DAPLink, READ_START, READ_NOW, READ_END
+from daplink import DAPLink
+from daplink import READ_START, READ_NOW, READ_END
+from daplink import AP_REG, DP_REG
 from errors import TransferError
 
 

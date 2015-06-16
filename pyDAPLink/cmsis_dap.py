@@ -15,397 +15,409 @@
  limitations under the License.
 """
 
-from cmsis_dap_core import CMSIS_DAP_Protocol
-from errors import TransferError
 import logging
-from time import sleep
+import array
+from errors import TransferError
 
-# Read modes:
+COMMAND_ID = {'DAP_INFO': 0x00,
+              'DAP_LED': 0x01,
+              'DAP_CONNECT': 0x02,
+              'DAP_DISCONNECT': 0x03,
+              'DAP_TRANSFER_CONFIGURE': 0x04,
+              'DAP_TRANSFER': 0x05,
+              'DAP_TRANSFER_BLOCK': 0x06,
+              'DAP_TRANSFER_ABORT': 0x07,
+              'DAP_WRITE_ABORT': 0x08,
+              'DAP_DELAY': 0x09,
+              'DAP_RESET_TARGET': 0x0a,
+              'DAP_SWJ_PINS': 0x10,
+              'DAP_SWJ_CLOCK': 0x11,
+              'DAP_SWJ_SEQUENCE': 0x12,
+              'DAP_SWD_CONFIGURE': 0x13,
+              'DAP_JTAG_SEQUENCE': 0x14,
+              'DAP_JTAG_CONFIGURE': 0x15,
+              'DAP_JTAG_IDCODE': 0x16,
+              'DAP_VENDOR0': 0x80,
+              }
 
-# Start a read.  This must be followed by READ_END of the
-# same type and in the same order
-READ_START = 1
-# Read immediately
-READ_NOW = 2
-# Get the result of a read started with READ_START
-READ_END = 3
+ID_INFO = {'VENDOR_ID': 0x01,
+           'PRODUCT_ID': 0x02,
+           'SERIAL_NUMBER': 0x03,
+           'CMSIS_DAP_FW_VERSION': 0x04,
+           'TARGET_DEVICE_VENDOR': 0x05,
+           'TARGET_DEVICE_NAME': 0x06,
+           'CAPABILITIES': 0xf0,
+           'PACKET_COUNT': 0xfe,
+           'PACKET_SIZE': 0xff
+           }
 
-# !! This value are A[2:3] and not A[3:2]
-DP_REG = {'IDCODE' : 0x00,
-          'ABORT' : 0x00,
-          'CTRL_STAT': 0x04,
-          'SELECT': 0x08
-          }
-AP_REG = {'CSW' : 0x00,
-          'TAR' : 0x04,
-          'DRW' : 0x0C,
-          'IDR' : 0xFC
-          }
+PINS = {'None': 0x00,
+        'SWCLK_TCK': (1 << 0),
+        'SWDIO_TMS': (1 << 1),
+        'TDI': (1 << 2),
+        'TDO': (1 << 3),
+        'nTRST': (1 << 5),
+        'nRESET': (1 << 7),
+        }
 
-IDCODE = 0 << 2
-AP_ACC = 1 << 0
-DP_ACC = 0 << 0
-READ = 1 << 1
-WRITE = 0 << 1
-VALUE_MATCH = 1 << 4
-MATCH_MASK = 1 << 5
+DAP_DEFAULT_PORT = 0
+DAP_SWD_PORT = 1
+DAP_JTAG_POR = 2
 
-APBANKSEL = 0x000000f0
+DAP_OK = 0
+DAP_ERROR = 0xff
 
-# AP Control and Status Word definitions
-CSW_SIZE     =  0x00000007
-CSW_SIZE8    =  0x00000000
-CSW_SIZE16   =  0x00000001
-CSW_SIZE32   =  0x00000002
-CSW_ADDRINC  =  0x00000030
-CSW_NADDRINC =  0x00000000
-CSW_SADDRINC =  0x00000010
-CSW_PADDRINC =  0x00000020
-CSW_DBGSTAT  =  0x00000040
-CSW_TINPROG  =  0x00000080
-CSW_HPROT    =  0x02000000
-CSW_MSTRTYPE =  0x20000000
-CSW_MSTRCORE =  0x00000000
-CSW_MSTRDBG  =  0x20000000
-CSW_RESERVED =  0x01000000
+# Responses to DAP_Transfer and DAP_TransferBlock
+DAP_TRANSFER_OK = 1
+DAP_TRANSFER_WAIT = 2
+DAP_TRANSFER_FAULT = 4
 
-CSW_VALUE  = (CSW_RESERVED | CSW_MSTRDBG | CSW_HPROT | CSW_DBGSTAT | CSW_SADDRINC)
+MAX_PACKET_SIZE = 0x0E
 
-TRANSFER_SIZE = {8: CSW_SIZE8,
-                 16: CSW_SIZE16,
-                 32: CSW_SIZE32
-                 }
-
-# Response values to DAP_Connect command
-DAP_MODE_SWD = 1
-DAP_MODE_JTAG = 2
-
-# DP Control / Status Register bit definitions
-CTRLSTAT_STICKYORUN = 0x00000002
-CTRLSTAT_STICKYCMP = 0x00000010
-CTRLSTAT_STICKYERR = 0x00000020
-
-COMMANDS_PER_DAP_TRANSFER = 12
-
+## @brief This class implements the CMSIS-DAP wire protocol.
 class CMSIS_DAP(object):
-    """
-    This class implements the CMSIS-DAP protocol
-    """
     def __init__(self, interface):
-        self.protocol = CMSIS_DAP_Protocol(interface)
-        self.packet_max_count = 0
-        self.packet_max_size = 0
-        self.csw = -1
-        self.dp_select = -1
-        self.deferred_transfer = False
-        self.request_list = []
-        self.data_list = []
-        self.data_read_list = []
+        self.interface = interface
 
-    def init(self, frequency = 1000000):
-        # Flush to be safe
-        self.flush()
-        # connect to DAP, check for SWD or JTAG
-        self.mode = self.protocol.connect()
-        # set clock frequency
-        self.protocol.setSWJClock(frequency)
-        # configure transfer
-        self.protocol.transferConfigure()
-        if (self.mode == DAP_MODE_SWD):
-            # configure swd protocol
-            self.protocol.swdConfigure()
-            # switch from jtag to swd
-            self.JTAG2SWD()
-            # read ID code
-            logging.info('IDCODE: 0x%X', self.readDP(DP_REG['IDCODE']))
-            # clear errors
-            self.protocol.writeAbort(0x1e);
-        elif (self.mode == DAP_MODE_JTAG):
-            # configure jtag protocol
-            self.protocol.jtagConfigure(4)
-            # Test logic reset, run test idle
-            self.protocol.swjSequence([0x1F])
-            # read ID code
-            logging.info('IDCODE: 0x%X', self.protocol.jtagIDCode())
-            # clear errors
-            self.writeDP(DP_REG['CTRL_STAT'], CTRLSTAT_STICKYERR | CTRLSTAT_STICKYCMP | CTRLSTAT_STICKYORUN)
+    def dapInfo(self, id_):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_INFO'])
+        cmd.append(ID_INFO[id_])
+        self.interface.write(cmd)
+
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_INFO']:
+            raise ValueError('DAP_INFO response error')
+
+        if resp[1] == 0:
+            return
+
+        # Integer values
+        if id_ in ('CAPABILITIES', 'PACKET_COUNT', 'PACKET_SIZE'):
+            if resp[1] == 1:
+                return resp[2]
+            if resp[1] == 2:
+                return (resp[3] << 8) | resp[2]
+
+        # String values
+        x = array.array('B', [i for i in resp[2:2+resp[1]]])
+
+        return x.tostring()
+
+    def setLed(self):
+        #not yet implemented
         return
 
-    def uninit(self):
-        self.flush()
-        self.protocol.disconnect()
-        return
+    def connect(self, mode = DAP_DEFAULT_PORT):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_CONNECT'])
+        cmd.append(mode)
+        self.interface.write(cmd)
 
-    def JTAG2SWD(self):
-        data = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
-        self.protocol.swjSequence(data)
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_CONNECT']:
+            raise ValueError('DAP_CONNECT response error')
 
-        data = [0x9e, 0xe7]
-        self.protocol.swjSequence(data)
+        if resp[1] == 0:
+            raise ValueError('DAP Connect failed')
 
-        data = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
-        self.protocol.swjSequence(data)
+        if resp[1] == 1:
+            logging.info('DAP SWD MODE initialised')
 
-        data = [0x00]
-        self.protocol.swjSequence(data)
+        if resp[1] == 2:
+            logging.info('DAP JTAG MODE initialised')
 
-    def info(self, request):
-        self.flush()
-        resp = None
-        try:
-            resp = self.protocol.dapInfo(request)
-        except KeyError:
-            logging.error('request %s not supported', request)
+        return resp[1]
+
+    def disconnect(self):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_DISCONNECT'])
+        self.interface.write(cmd)
+
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_DISCONNECT']:
+            raise ValueError('DAP_DISCONNECT response error')
+
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP Disconnect failed')
+
+        return resp[1]
+
+    def writeAbort(self, data, dap_index = 0):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_WRITE_ABORT'])
+        cmd.append(dap_index)
+        cmd.append((data >> 0) & 0xff)
+        cmd.append((data >> 8) & 0xff)
+        cmd.append((data >> 16) & 0xff)
+        cmd.append((data >> 24) & 0xff)
+        self.interface.write(cmd)
+
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_WRITE_ABORT']:
+            raise ValueError('DAP_WRITE_ABORT response error')
+
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP Write Abort failed')
+
+        return True
+
+    def resetTarget(self):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_RESET_TARGET'])
+        self.interface.write(cmd)
+
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_RESET_TARGET']:
+            raise ValueError('DAP_RESET_TARGET response error')
+
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP Reset target failed')
+
+        return resp[1]
+
+    def transferConfigure(self, idle_cycles = 0x00, wait_retry = 0x0050, match_retry = 0x0000):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_TRANSFER_CONFIGURE'])
+        cmd.append(idle_cycles)
+        cmd.append(wait_retry & 0xff)
+        cmd.append(wait_retry >> 8)
+        cmd.append(match_retry & 0xff)
+        cmd.append(match_retry >> 8)
+        self.interface.write(cmd)
+
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_TRANSFER_CONFIGURE']:
+            raise ValueError('DAP_TRANSFER_CONFIGURE response error')
+
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP Transfer Configure failed')
+
+        return resp[1]
+
+    def transfer(self, count, request, data = [0], dap_index = 0):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_TRANSFER'])
+        cmd.append(dap_index)
+        cmd.append(count)
+        count_write = count
+        for i in range(count):
+            cmd.append(request[i])
+            if not ( request[i] & ((1 << 1) | (1 << 4))):
+                cmd.append(data[i] & 0xff)
+                cmd.append((data[i] >> 8) & 0xff)
+                cmd.append((data[i] >> 16) & 0xff)
+                cmd.append((data[i] >> 24) & 0xff)
+                count_write -= 1
+        self.interface.write(cmd)
+
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_TRANSFER']:
+            raise ValueError('DAP_TRANSFER response error')
+
+        if resp[2] != DAP_TRANSFER_OK:
+            if resp[2] == DAP_TRANSFER_FAULT:
+                raise TransferError()
+            raise ValueError('SWD Fault')
+
+        # Check for count mismatch after checking for DAP_TRANSFER_FAULT
+        # This allows TransferError to get thrown instead of ValueError
+        if resp[1] != count:
+            raise ValueError('Transfer not completed')
+
+        return resp[3:3+count_write*4]
+
+    def transferBlock(self, count, request, data = [0], dap_index = 0):
+        packet_count = count
+        max_pending_reads = self.interface.getPacketCount()
+        reads_pending = 0
+        nb = 0
+        resp = []
+        error_transfer = False
+        error_response = False
+
+        # we send successfully several packets if the size is bigger than MAX_PACKET_COUNT
+        while packet_count > 0 or reads_pending > 0:
+            # Make sure the transmit buffer stays saturated
+            while packet_count > 0 and reads_pending < max_pending_reads:
+                cmd = []
+                cmd.append(COMMAND_ID['DAP_TRANSFER_BLOCK'])
+                cmd.append(dap_index)
+                packet_written = min(packet_count, MAX_PACKET_SIZE)
+                cmd.append(packet_written & 0xff)
+                cmd.append((packet_written >> 8) & 0xff)
+                cmd.append(request)
+                if not (request & ((1 << 1))):
+                    for i in range(packet_written):
+                        cmd.append(data[i + nb*MAX_PACKET_SIZE] & 0xff)
+                        cmd.append((data[i + nb*MAX_PACKET_SIZE] >> 8) & 0xff)
+                        cmd.append((data[i + nb*MAX_PACKET_SIZE] >> 16) & 0xff)
+                        cmd.append((data[i + nb*MAX_PACKET_SIZE] >> 24) & 0xff)
+                self.interface.write(cmd)
+                packet_count = packet_count - MAX_PACKET_SIZE
+                nb = nb + 1
+                reads_pending = reads_pending + 1
+
+            # Read data
+            if reads_pending > 0:
+                # we then read
+                tmp = self.interface.read()
+                if tmp[0] != COMMAND_ID['DAP_TRANSFER_BLOCK']:
+                    # Error occurred - abort further writes
+                    # but make sure to finish reading remaining packets
+                    packet_count = 0
+                    error_response = True
+
+                if tmp[3] != DAP_TRANSFER_OK:
+                    # Error occurred - abort further writes
+                    # but make sure to finish reading remaining packets
+                    packet_count = 0
+                    if tmp[3] == DAP_TRANSFER_FAULT:
+                        error_transfer = True
+                    else:
+                        error_response = True
+
+                size_transfer = tmp[1] | (tmp[2] << 8)
+                resp.extend(tmp[4:4+size_transfer*4])
+                reads_pending = reads_pending - 1
+
+        # Raise pending errors
+        if error_response:
+            raise ValueError('DAP_TRANSFER_BLOCK response error')
+        elif error_transfer:
+            raise TransferError()
+
         return resp
 
-    def clearStickyErr(self):
-        if (self.mode == DAP_MODE_SWD):
-            self.writeDP(0x0, (1 << 2))
-        elif (self.mode == DAP_MODE_JTAG):
-            self.writeDP(DP_REG['CTRL_STAT'], CTRLSTAT_STICKYERR)
+    def setSWJClock(self, clock = 1000000):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_SWJ_CLOCK'])
+        cmd.append(clock & 0xff)
+        cmd.append((clock >> 8) & 0xff)
+        cmd.append((clock >> 16) & 0xff)
+        cmd.append((clock >> 24) & 0xff)
+        self.interface.write(cmd)
 
-    def writeMem(self, addr, data, transfer_size = 32):
-        self.writeAP(AP_REG['CSW'], CSW_VALUE | TRANSFER_SIZE[transfer_size])
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_SWJ_CLOCK']:
+                raise ValueError('DAP_SWJ_CLOCK response error')
 
-        if transfer_size == 8:
-            data = data << ((addr & 0x03) << 3)
-        elif transfer_size == 16:
-            data = data << ((addr & 0x02) << 3)
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP SWJ Clock failed')
 
-        self._write(WRITE | AP_ACC | AP_REG['TAR'], addr)
-        self._write(WRITE | AP_ACC | AP_REG['DRW'], data)
+        return resp[1]
 
-        # If not in deferred mode flush after calls to _read or _write
-        if not self.deferred_transfer:
-            self.flush()
-
-    def readMem(self, addr, transfer_size = 32, mode = READ_NOW):
-        res = None
-        if mode in (READ_START, READ_NOW):
-            self.writeAP(AP_REG['CSW'], CSW_VALUE | TRANSFER_SIZE[transfer_size])
-            self._write(WRITE | AP_ACC | AP_REG['TAR'], addr)
-            self._write(READ | AP_ACC | AP_REG['DRW'])
-
-        if mode in (READ_NOW, READ_END):
-            resp = self._read()
-            res =   (resp[0] << 0)  | \
-                    (resp[1] << 8)  | \
-                    (resp[2] << 16) | \
-                    (resp[3] << 24)
-
-            # All READ_STARTs must have been finished with READ_END before using READ_NOW
-            assert (mode != READ_NOW) or (len(self.data_read_list) == 0)
-
-            if transfer_size == 8:
-                res = (res >> ((addr & 0x03) << 3) & 0xff)
-            elif transfer_size == 16:
-                res = (res >> ((addr & 0x02) << 3) & 0xffff)
-
-        # If not in deferred mode flush after calls to _read or _write
-        if not self.deferred_transfer:
-            self.flush()
-        return res
-
-    # write aligned word ("data" are words)
-    def writeBlock32(self, addr, data):
-        # put address in TAR
-        self.writeAP(AP_REG['CSW'], CSW_VALUE | CSW_SIZE32)
-        self.writeAP(AP_REG['TAR'], addr)
+    def setSWJPins(self, output, pin, wait = 0):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_SWJ_PINS'])
         try:
-            self._transferBlock(len(data), WRITE | AP_ACC | AP_REG['DRW'], data)
-        except TransferError:
-            self.clearStickyErr()
-            raise
-        # If not in deferred mode flush after calls to _read or _write
-        if not self.deferred_transfer:
-            self.flush()
-
-    # read aligned word (the size is in words)
-    def readBlock32(self, addr, size):
-        # put address in TAR
-        self.writeAP(AP_REG['CSW'], CSW_VALUE | CSW_SIZE32)
-        self.writeAP(AP_REG['TAR'], addr)
-        data = []
-        try:
-            resp = self._transferBlock(size, READ | AP_ACC | AP_REG['DRW'])
-        except TransferError:
-            self.clearStickyErr()
-            raise
-        for i in range(len(resp)/4):
-            data.append( (resp[i*4 + 0] << 0)   | \
-                         (resp[i*4 + 1] << 8)   | \
-                         (resp[i*4 + 2] << 16)  | \
-                         (resp[i*4 + 3] << 24))
-        # If not in deferred mode flush after calls to _read or _write
-        if not self.deferred_transfer:
-            self.flush()
-        return data
-
-
-    def readDP(self, addr, mode = READ_NOW):
-        res = None
-        if mode in (READ_START, READ_NOW):
-            self._write(READ | DP_ACC | (addr & 0x0c))
-
-        if mode in (READ_NOW, READ_END):
-            resp = self._read()
-            res =   (resp[0] << 0)  | \
-                    (resp[1] << 8)  | \
-                    (resp[2] << 16) | \
-                    (resp[3] << 24)
-
-            # All READ_STARTs must have been finished with READ_END before using READ_NOW
-            assert (mode != READ_NOW) or (len(self.data_read_list) == 0)
-
-        # If not in deferred mode flush after calls to _read or _write
-        if not self.deferred_transfer:
-            self.flush()
-        return res
-
-    def writeDP(self, addr, data):
-        if addr == DP_REG['SELECT']:
-            if data == self.dp_select:
+            p = PINS[pin]
+        except KeyError:
+                logging.error('cannot find %s pin', pin)
                 return
-            self.dp_select = data
+        cmd.append(output & 0xff)
+        cmd.append(p)
+        cmd.append(wait & 0xff)
+        cmd.append((wait >> 8) & 0xff)
+        cmd.append((wait >> 16) & 0xff)
+        cmd.append((wait >> 24) & 0xff)
+        self.interface.write(cmd)
 
-        self._write(WRITE | DP_ACC | (addr & 0x0c), data)
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_SWJ_PINS']:
+                raise ValueError('DAP_SWJ_PINS response error')
 
-        # If not in deferred mode flush after calls to _read or _write
-        if not self.deferred_transfer:
-            self.flush()
-        return True
+        return resp[1]
 
-    def writeAP(self, addr, data):
-        ap_sel = addr & 0xff000000
-        bank_sel = addr & APBANKSEL
-        self.writeDP(DP_REG['SELECT'], ap_sel | bank_sel)
+    def swdConfigure(self, conf = 0):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_SWD_CONFIGURE'])
+        cmd.append(conf)
+        self.interface.write(cmd)
 
-        if addr == AP_REG['CSW']:
-            if data == self.csw:
-                return
-            self.csw = data
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_SWD_CONFIGURE']:
+                raise ValueError('DAP_SWD_CONFIGURE response error')
 
-        self._write(WRITE | AP_ACC | (addr & 0x0c), data)
-        # If not in deferred mode flush after calls to _read or _write
-        if not self.deferred_transfer:
-            self.flush()
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP SWD Configure failed')
 
-        return True
+        return resp[1]
 
-    def readAP(self, addr, mode = READ_NOW):
-        res = None
-        if mode in (READ_START, READ_NOW):
-            ap_sel = addr & 0xff000000
-            bank_sel = addr & APBANKSEL
+    def swjSequence(self, data):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_SWJ_SEQUENCE'])
+        cmd.append(len(data)*8)
+        for i in range(len(data)):
+            cmd.append(data[i])
+        self.interface.write(cmd)
 
-            self.writeDP(DP_REG['SELECT'], ap_sel | bank_sel)
-            self._write(READ | AP_ACC | (addr & 0x0c))
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_SWJ_SEQUENCE']:
+                raise ValueError('DAP_SWJ_SEQUENCE response error')
 
-        if mode in (READ_NOW, READ_END):
-            resp = self._read()
-            res =   (resp[0] << 0)  | \
-                    (resp[1] << 8)  | \
-                    (resp[2] << 16) | \
-                    (resp[3] << 24)
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP SWJ Sequence failed')
 
-            # All READ_STARTs must have been finished with READ_END before using READ_NOW
-            assert (mode != READ_NOW) or (len(self.data_read_list) == 0)
+        return resp[1]
 
-        # If not in deferred mode flush after calls to _read or _write
-        if not self.deferred_transfer:
-            self.flush()
+    def jtagSequence(self, info, tdi):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_JTAG_SEQUENCE'])
+        cmd.append(1)
+        cmd.append(info)
+        cmd.append(tdi)
+        self.interface.write(cmd)
 
-        return res
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_JTAG_SEQUENCE']:
+            raise ValueError('DAP_JTAG_SEQUENCE response error')
 
-    def reset(self):
-        self.flush()
-        self.protocol.setSWJPins(0, 'nRESET')
-        sleep(0.1)
-        self.protocol.setSWJPins(0x80, 'nRESET')
-        sleep(0.1)
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP JTAG Sequence failed')
 
-    def assertReset(self, asserted):
-        self.flush()
-        if asserted:
-            self.protocol.setSWJPins(0, 'nRESET')
-        else:
-            self.protocol.setSWJPins(0x80, 'nRESET')
+        return resp[2]
 
-    def setClock(self, frequency):
-        self.flush()
-        self.protocol.setSWJClock(frequency)
+    def jtagConfigure(self, irlen, dev_num = 1):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_JTAG_CONFIGURE'])
+        cmd.append(dev_num)
+        cmd.append(irlen)
+        self.interface.write(cmd)
 
-    def setDeferredTransfer(self, enable):
-        """
-        Allow transfers to be delayed and buffered
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_JTAG_CONFIGURE']:
+            raise ValueError('DAP_JTAG_CONFIGURE response error')
 
-        By default deferred transfers are turned off.  All reads and
-        writes will be completed by the time the function returns.
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP JTAG Configure failed')
 
-        When enabled packets are buffered and sent all at once, which
-        increases speed.  When memory is written to, the transfer
-        might take place immediately, or might take place on a future
-        memory write.  This means that an invalid write could cause an
-        exception to occur on a later, unrelated write.  To guarantee
-        that previous writes are complete call the flush() function.
+        return resp[2:]
 
-        The behaviour of read operations is determined by the modes
-        READ_START, READ_NOW and READ_END.  The option READ_NOW is the
-        default and will cause the read to flush all previous writes,
-        and read the data immediately.  To improve performance, multiple
-        reads can be made using READ_START and finished later with READ_NOW.
-        This allows the reads to be buffered and sent at once.  Note - All
-        READ_ENDs must be called before a call using READ_NOW can be made.
-        """
-        if self.deferred_transfer and not enable:
-            self.flush()
-        self.deferred_transfer = enable
+    def jtagIDCode(self, index = 0):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_JTAG_IDCODE'])
+        cmd.append(index)
+        self.interface.write(cmd)
 
-    def flush(self):
-        """
-        Flush out all commands
-        """
-        transfer_count = len(self.request_list)
-        if transfer_count > 0:
-            assert transfer_count <= COMMANDS_PER_DAP_TRANSFER
-            try:
-                data = self.protocol.transfer(transfer_count, self.request_list, self.data_list)
-                self.data_read_list.extend(data)
-            except TransferError:
-                # Dump any pending commands
-                self.request_list = []
-                self.data_list = []
-                # Dump any data read
-                self.data_read_list = []
-                # Invalidate cached registers
-                self.csw = -1
-                self.dp_select = -1
-                # Clear error
-                self.clearStickyErr()
-                raise
-            self.request_list = []
-            self.data_list = []
+        resp = self.interface.read()
+        if resp[0] != COMMAND_ID['DAP_JTAG_IDCODE']:
+            raise ValueError('DAP_JTAG_IDCODE response error')
 
-    def _write(self, request, data = 0):
-        """
-        Write a single command
-        """
-        self.request_list.append(request)
-        self.data_list.append(data)
-        transfer_count = len(self.request_list)
-        if (transfer_count >= COMMANDS_PER_DAP_TRANSFER):
-            self.flush()
+        if resp[1] != DAP_OK:
+            raise ValueError('DAP JTAG ID code failed')
 
-    def _read(self):
-        """
-        Read the response from a single command
-        """
-        if len(self.data_read_list) < 4:
-            self.flush()
-        data = self.data_read_list[0:4]
-        self.data_read_list = self.data_read_list[4:]
-        return data
+        return  (resp[2] << 0)  | \
+                (resp[3] << 8)  | \
+                (resp[4] << 16) | \
+                (resp[5] << 24)
 
-    def _transferBlock(self, count, request, data = [0]):
-        self.flush()
-        return self.protocol.transferBlock(count, request, data)
+    def vendor(self, index):
+        cmd = []
+        cmd.append(COMMAND_ID['DAP_VENDOR0'] + index)
+        self.interface.write(cmd)
+
+        resp = self.interface.read()
+
+        if resp[0] != COMMAND_ID['DAP_VENDOR0'] + index:
+            raise ValueError('DAP_VENDOR response error')
