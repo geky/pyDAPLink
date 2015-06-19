@@ -31,7 +31,7 @@ setup(
         'write_to': 'pyDAPLink/_version.py'
     },
     setup_requires=['setuptools-scm!=1.5.3,!=1.5.4'],
-    description="CMSIS-DAP communication in Python",
+    description="Cross-platform CMSIS-DAP access over USB in Python",
     long_description=open('README.rst', 'Ur').read(),
     author="samux, emilmont",
     author_email="Samuel.Mokrani@arm.com, Emilio.Monti@arm.com",
