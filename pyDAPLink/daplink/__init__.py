@@ -1,6 +1,6 @@
 """
  mbed CMSIS-DAP debugger
- Copyright (c) 2006-2013 ARM Limited
+ Copyright (c) 2006-2015 ARM Limited
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -15,9 +15,6 @@
  limitations under the License.
 """
 
-class TransferError(ValueError):
-    pass
-
-class CommandError(ValueError):
-    pass
+from .core import DAPLinkCore, AP_REG, DP_REG
+from .protocol import CMSIS_DAP
 

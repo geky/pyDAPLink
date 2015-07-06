@@ -17,7 +17,7 @@
 
 import logging
 import array
-from errors import TransferError
+from ..errors import TransferError
 
 COMMAND_ID = {'DAP_INFO': 0x00,
               'DAP_LED': 0x01,

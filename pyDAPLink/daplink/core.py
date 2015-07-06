@@ -15,9 +15,9 @@
  limitations under the License.
 """
 
-from cmsis_dap import CMSIS_DAP
-from interface import INTERFACE, usb_backend
-from errors import TransferError
+from .protocol import CMSIS_DAP
+from ..errors import TransferError
+from ..interface import INTERFACE, usb_backend
 import logging
 from time import sleep
 
@@ -79,7 +79,7 @@ CTRLSTAT_STICKYERR = 0x00000020
 
 COMMANDS_PER_DAP_TRANSFER = 12
 
-class DAPLink(object):
+class DAPLinkCore(object):
     """
     This class implements the CMSIS-DAP protocol
     """
@@ -187,12 +187,12 @@ class DAPLink(object):
 
     def readMem(self, addr, transfer_size = 32, mode = READ_NOW):
         res = None
-        if mode in (DAPLink.READ_START, DAPLink.READ_NOW):
+        if mode in (DAPLinkCore.READ_START, DAPLinkCore.READ_NOW):
             self.writeAP(AP_REG['CSW'], CSW_VALUE | TRANSFER_SIZE[transfer_size])
             self._write(WRITE | AP_ACC | AP_REG['TAR'], addr)
             self._write(READ | AP_ACC | AP_REG['DRW'])
 
-        if mode in (DAPLink.READ_NOW, DAPLink.READ_END):
+        if mode in (DAPLinkCore.READ_NOW, DAPLinkCore.READ_END):
             resp = self._read()
             res =   (resp[0] << 0)  | \
                     (resp[1] << 8)  | \
@@ -200,7 +200,7 @@ class DAPLink(object):
                     (resp[3] << 24)
 
             # All READ_STARTs must have been finished with READ_END before using READ_NOW
-            assert (mode != DAPLink.READ_NOW) or (len(self.data_read_list) == 0)
+            assert (mode != DAPLinkCore.READ_NOW) or (len(self.data_read_list) == 0)
 
             if transfer_size == 8:
                 res = (res >> ((addr & 0x03) << 3) & 0xff)
@@ -250,10 +250,10 @@ class DAPLink(object):
 
     def readDP(self, addr, mode = READ_NOW):
         res = None
-        if mode in (DAPLink.READ_START, DAPLink.READ_NOW):
+        if mode in (DAPLinkCore.READ_START, DAPLinkCore.READ_NOW):
             self._write(READ | DP_ACC | (addr & 0x0c))
 
-        if mode in (DAPLink.READ_NOW, DAPLink.READ_END):
+        if mode in (DAPLinkCore.READ_NOW, DAPLinkCore.READ_END):
             resp = self._read()
             res =   (resp[0] << 0)  | \
                     (resp[1] << 8)  | \
@@ -261,7 +261,7 @@ class DAPLink(object):
                     (resp[3] << 24)
 
             # All READ_STARTs must have been finished with READ_END before using READ_NOW
-            assert (mode != DAPLink.READ_NOW) or (len(self.data_read_list) == 0)
+            assert (mode != DAPLinkCore.READ_NOW) or (len(self.data_read_list) == 0)
 
         # If not in deferred mode flush after calls to _read or _write
         if not self.deferred_transfer:
@@ -300,14 +300,14 @@ class DAPLink(object):
 
     def readAP(self, addr, mode = READ_NOW):
         res = None
-        if mode in (DAPLink.READ_START, DAPLink.READ_NOW):
+        if mode in (DAPLinkCore.READ_START, DAPLinkCore.READ_NOW):
             ap_sel = addr & 0xff000000
             bank_sel = addr & APBANKSEL
 
             self.writeDP(DP_REG['SELECT'], ap_sel | bank_sel)
             self._write(READ | AP_ACC | (addr & 0x0c))
 
-        if mode in (DAPLink.READ_NOW, DAPLink.READ_END):
+        if mode in (DAPLinkCore.READ_NOW, DAPLinkCore.READ_END):
             resp = self._read()
             res =   (resp[0] << 0)  | \
                     (resp[1] << 8)  | \
@@ -315,7 +315,7 @@ class DAPLink(object):
                     (resp[3] << 24)
 
             # All READ_STARTs must have been finished with READ_END before using READ_NOW
-            assert (mode != DAPLink.READ_NOW) or (len(self.data_read_list) == 0)
+            assert (mode != DAPLinkCore.READ_NOW) or (len(self.data_read_list) == 0)
 
         # If not in deferred mode flush after calls to _read or _write
         if not self.deferred_transfer:

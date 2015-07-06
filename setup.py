@@ -43,6 +43,11 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python",
     ],
+    entry_points={
+        'console_scripts': [
+            'pydaplink-server = pyDAPLink.tools.pydaplink_server:main',
+        ],
+    },
     use_2to3=True,
     packages=find_packages(),
     include_package_data=True,  # include files from MANIFEST.in

@@ -15,9 +15,15 @@
  limitations under the License.
 """
 
-class TransferError(ValueError):
-    pass
+import unix_socket
 
-class CommandError(ValueError):
-    pass
+CLIENT = {}
+SERVER = {}
+
+if unix_socket.isAvailable:
+    CLIENT['unix'] = unix_socket.UnixClient
+    SERVER['unix'] = unix_socket.UnixServer
+
+default_client = CLIENT.values()[0] if CLIENT else None
+default_server = SERVER.values()[0] if SERVER else None
 
