@@ -16,6 +16,7 @@
 """
 
 import unix_socket
+import tcp_socket
 
 CLIENT = {}
 SERVER = {}
@@ -23,7 +24,12 @@ SERVER = {}
 if unix_socket.isAvailable:
     CLIENT['unix'] = unix_socket.UnixClient
     SERVER['unix'] = unix_socket.UnixServer
+if tcp_socket.isAvailable:
+    CLIENT['tcp'] = tcp_socket.TCPClient
+    SERVER['tcp'] = tcp_socket.TCPServer
 
-default_client = CLIENT.values()[0] if CLIENT else None
-default_server = SERVER.values()[0] if SERVER else None
-
+for type in 'unix', 'tcp':
+    if type in CLIENT.keys() and type in SERVER.keys():
+        default_client = CLIENT[type]
+        default_server = SERVER[type]
+        break

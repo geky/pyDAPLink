@@ -19,14 +19,30 @@
 from __future__ import absolute_import
 
 import os
-import stat
 import socket
+from select import select
 from .socket import Connection, Server, Client
 
 
-isAvailable = hasattr(socket, 'AF_UNIX')
+isAvailable = True
 
-class UnixConnection(Connection):
+def getaddrinfo(address):
+    """ Looks up family, type, and underlying ip address for
+        the 'hostname:port' address string representation
+    """
+    # parse host and port values
+    host, port = address.rsplit(':', 1)
+    port = int(port)
+    if host.startswith('[') and host.endswith(']'):
+        host = host[1:-1]
+
+    # lookup hostname
+    info = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
+    family, type, _, _, address = info[0]
+
+    return family, type, address
+
+class TCPConnection(Connection):
     def __init__(self, socket):
         self._socket = socket
         self._isalive = True
@@ -51,48 +67,38 @@ class UnixConnection(Connection):
     def uninit(self):
         self._socket.close()
 
-class UnixClient(UnixConnection, Client):
-    def __init__(self, address='/tmp/pydaplink/socket'):
+class TCPClient(TCPConnection, Client):
+    def __init__(self, address='localhost:4116'):
         self.address = address
         self._isalive = False
 
     def init(self):
-        conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        conn.connect(self.address)
+        family, type, address = getaddrinfo(self.address)
+        conn = socket.socket(family, type)
+        conn.connect(address)
 
-        UnixConnection.__init__(self, conn)
+        TCPConnection.__init__(self, conn)
 
-class UnixServer(Server):
-    def __init__(self, address='/tmp/pydaplink/socket'):
+class TCPServer(Server):
+    def __init__(self, address='localhost:4116'):
         self.address = address
         self._isalive = False
     
     def init(self):
-        # First make sure path to socket exists
-        try:
-            os.makedirs(os.path.dirname(self.address))
-        except OSError:
-            pass
-
-        # Socket can get left if previous server failed to exit cleanly
-        try:
-            if stat.S_ISSOCK(os.stat(self.address).st_mode):
-                os.unlink(self.address)
-        except OSError:
-            pass
-
         # Create the server socket
-        self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._socket.bind(self.address)
+        family, type, address = getaddrinfo(self.address)
+        self._socket = socket.socket(family, type)
+        self._socket.bind(address)
         self._socket.listen(socket.SOMAXCONN)
 
+        self._port = address[1]
         self._isalive = True
 
     def accept(self):
         conn, _ = self._socket.accept()
 
         if self._isalive:
-            return UnixConnection(conn)
+            return TCPConnection(conn)
         else:
             return None
 
@@ -102,11 +108,10 @@ class UnixServer(Server):
     def shutdown(self):
         self._isalive = False
         # Create connection to wake up accept call
-        conn = UnixClient(self.address)
+        conn = TCPClient('localhost:%d' % self._port)
         conn.init()
         conn.uninit()
 
     def uninit(self):
         self._socket.close()
-        os.unlink(self.address)
 
