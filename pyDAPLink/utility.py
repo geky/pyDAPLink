@@ -36,15 +36,9 @@ def unpack(fmt, string):
 
 
 # Creating and disowning processes
-# Because of the possible platforms there are several 
-# different commands we can try to disown the process
 def popen_and_detach(args):
-    with open(os.devnull, 'w') as null:
-        for command in ['setsid'], ['nohup'], []:
-            try:
-                return Popen(command + args, stdout=null, stderr=null)
-            except OSError:
-                pass
-        else:
-            raise
+    # Fortunately, OSs without setsid won't need to disown children
+    setsid = os.setsid if hasattr(os, 'setsid') else None
 
+    with open(os.devnull, 'w') as null:
+        return Popen(args, preexec_fn=setsid, stdout=null, stderr=null)

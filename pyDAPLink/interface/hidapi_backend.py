@@ -44,7 +44,10 @@ class HidApiUSB(Interface):
         self.device = None
 
     def open(self):
-        pass
+        try:
+            dev.open(self.vid, self.pid)
+        except AttributeError:
+            pass
 
     @staticmethod
     def getConnectedInterfaces(vid, pid):
@@ -77,10 +80,6 @@ class HidApiUSB(Interface):
             new_board.pid = deviceInfo['product_id']
             new_board.path = deviceInfo['path']
             new_board.device = dev
-            try:
-                dev.open(vid, pid)
-            except AttributeError:
-                pass
 
             boards.append(new_board)
 

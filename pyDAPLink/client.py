@@ -31,23 +31,28 @@ class DAPLinkClient(object):
     specific payload.
     """
 
-    def __init__(self, address=None, create_server=True):
+    def __init__(self, address=None, create_server=True, connect_attempts=5):
         self._client = default_client(*[address] if address else [])
         self._create_server = create_server
+        self._connect_attempts = connect_attempts
 
     def init(self):
-        try:
-            self._client.init()
-        except IOError:
-            if self._create_server:
-                popen_and_detach(['pydaplink-server',
-                                  '--temporary',
-                                  '--address', self.address])
-                # give the server some time to create the socket
-                sleep(0.5)
+        attempts = 0
+
+        while (not self._connect_attempts or
+               attempts < self._connect_attempts):
+            try:
                 self._client.init()
-            else:
-                raise
+                break
+            except IOError:
+                if attempts == 0 and self._create_server:
+                    process = popen_and_detach(['pydaplink-server',
+                                                '--temporary',
+                                                '--address', self.address])
+                sleep(0.1)
+                attempts += 1
+        else:
+            raise
 
     @property
     def address(self):

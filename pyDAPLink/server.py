@@ -148,7 +148,7 @@ class IfSelection(object):
             # We need to make sure no existing interface's ids change
             new_ifs = INTERFACE[usb_backend].getConnectedInterfaces(self.vid, self.pid)
 
-            for new_if in new_ifs:
+            for new_if in new_ifs or []:
                 if new_if not in self._ifs.values():
                     new_id = next(id for id in xrange(1, 2**16)
                                   if id not in self._ifs)
@@ -226,7 +226,7 @@ class DAPLinkServer(object):
                     thread.start()
                     self._threads.add(thread)
         finally:
-            self._threads.remove(threading.current_thread())
+            self._threads.discard(threading.current_thread())
 
     def _client_task(self, client):
         try:
@@ -253,7 +253,7 @@ class DAPLinkServer(object):
                 self._handle_command(client, command, data)
         finally:
             client.close()
-            self._threads.remove(threading.current_thread())
+            self._threads.discard(threading.current_thread())
         
     def _handle_command(self, client, command, data):
         if command not in COMMANDS:

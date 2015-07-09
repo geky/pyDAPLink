@@ -52,20 +52,23 @@ class UnixConnection(Connection):
         self._socket.close()
 
 class UnixClient(UnixConnection, Client):
-    def __init__(self, address='/tmp/pydaplink/socket'):
+    def __init__(self, address='/tmp/pydaplink/socket', timeout=None):
         self.address = address
         self._isalive = False
+        self._timeout = timeout
 
     def init(self):
         conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        conn.settimeout(self._timeout)
         conn.connect(self.address)
 
         UnixConnection.__init__(self, conn)
 
 class UnixServer(Server):
-    def __init__(self, address='/tmp/pydaplink/socket'):
+    def __init__(self, address='/tmp/pydaplink/socket', timeout=None):
         self.address = address
         self._isalive = False
+        self._timeout = timeout
     
     def init(self):
         # First make sure path to socket exists
@@ -83,6 +86,7 @@ class UnixServer(Server):
 
         # Create the server socket
         self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self._socket.settimeout(self._timeout)
         self._socket.bind(self.address)
         self._socket.listen(socket.SOMAXCONN)
 
@@ -90,6 +94,7 @@ class UnixServer(Server):
 
     def accept(self):
         conn, _ = self._socket.accept()
+        conn.settimeout(self._timeout)
 
         if self._isalive:
             return UnixConnection(conn)

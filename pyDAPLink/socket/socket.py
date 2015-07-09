@@ -22,6 +22,9 @@ class Connection(object):
     def recv(self, size):
         return
 
+    def settimeout(self, timeout):
+        return
+
     def isalive(self):
         return
 
@@ -32,20 +35,23 @@ class Connection(object):
         return
 
 class Client(Connection):
-    def __init__(self, address=None):
+    def __init__(self, address=None, timeout=None):
         self.address = address
 
     def init(self):
         return
 
 class Server(object):
-    def __init__(self, address=None):
+    def __init__(self, address=None, timeout=None):
         self.address = address
     
     def init(self):
         return
 
     def accept(self):
+        return
+
+    def settimeout(self):
         return
 
     def isalive(self):

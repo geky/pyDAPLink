@@ -57,6 +57,9 @@ class TCPConnection(Connection):
 
         return data
 
+    def settimeout(self, timeout):
+        self._socket.settimeout(timeout)
+
     def isalive(self):
         return self._isalive
 
@@ -68,26 +71,32 @@ class TCPConnection(Connection):
         self._socket.close()
 
 class TCPClient(TCPConnection, Client):
-    def __init__(self, address='localhost:4116'):
+    def __init__(self, address='localhost:4116', timeout=None):
         self.address = address
         self._isalive = False
+        self._timeout = timeout
 
     def init(self):
         family, type, address = getaddrinfo(self.address)
         conn = socket.socket(family, type)
+        conn.settimeout(self._timeout)
         conn.connect(address)
 
         TCPConnection.__init__(self, conn)
 
 class TCPServer(Server):
-    def __init__(self, address='localhost:4116'):
+    # defaults to restricting access to localhost if remote access
+    # is needed, an address without hostname, such as ':4116', can be used
+    def __init__(self, address='localhost:4116', timeout=None):
         self.address = address
         self._isalive = False
+        self._timeout = timeout
     
     def init(self):
         # Create the server socket
         family, type, address = getaddrinfo(self.address)
         self._socket = socket.socket(family, type)
+        self._socket.settimeout(self._timeout)
         self._socket.bind(address)
         self._socket.listen(socket.SOMAXCONN)
 
@@ -96,11 +105,15 @@ class TCPServer(Server):
 
     def accept(self):
         conn, _ = self._socket.accept()
+        conn.settimeout(self._timeout)
 
         if self._isalive:
             return TCPConnection(conn)
         else:
             return None
+
+    def settimeout(self, timeout):
+        self._socket.settimeout(timeout)
 
     def isalive(self):
         return self._isalive
