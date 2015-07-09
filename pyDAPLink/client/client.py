@@ -15,12 +15,15 @@
  limitations under the License.
 """
 
-from .socket import default_client
-from .utility import pack, unpack
-from .utility import popen_and_detach
-from .errors import CommandError
+from .connection import DAPLinkConnection
+from ..socket import default_client
+from ..utility import pack, unpack
+from ..utility import popen_and_detach
+from ..errors import CommandError
 from time import sleep
 import logging
+
+from .._version import version as __version__
 
 
 class DAPLinkClient(object):
@@ -53,6 +56,13 @@ class DAPLinkClient(object):
                 attempts += 1
         else:
             raise
+
+        # Check the server's version, this also determines if the server 
+        # is actually a daplink server
+        server_version = self._command('sv', None, '*')
+
+        if server_version != __version__:
+            logging.warning('Server and client are not the same version')
 
     @property
     def address(self):
@@ -88,12 +98,8 @@ class DAPLinkClient(object):
         ids = [unpack('H', ids[i:i+2])[0]
                for i in range(0, len(ids), 2)]
 
-        boards = []
-        for id in ids:
-            vendor_name = self._command('bv', 'H', '*', id)
-            product_name = self._command('bp', 'H', '*', id)
-
-            boards.append((id, vendor_name, product_name))
+        boards = [DAPLinkConnection(self, vid, pid, id)
+                  for id in ids]
 
         return boards
 
