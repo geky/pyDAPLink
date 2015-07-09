@@ -47,10 +47,10 @@ def main():
 
     try:
         if args.temporary:
-            while server.client_count() < 1:
+            while server.client_count < 1:
                 sleep(5)
 
-            while server.client_count() > 0:
+            while server.client_count > 0:
                 sleep(5)
         else:
             while True:

@@ -108,13 +108,11 @@ class PyUSB(Interface):
                 else:
                     ep_out = ep
 
-            product_name = usb.util.get_string(board, 2)
-            vendor_name = usb.util.get_string(board, 1)
             """If there is no EP for OUT then we can use CTRL EP"""
             if not ep_in:
                 logging.error('Endpoints not found')
                 return None
-            
+
             new_board = PyUSB()
             new_board.ep_in = ep_in
             new_board.ep_out = ep_out
@@ -122,8 +120,11 @@ class PyUSB(Interface):
             new_board.vid = vid
             new_board.pid = pid
             new_board.intf_number = interface_number
-            new_board.product_name = product_name
-            new_board.vendor_name = vendor_name
+            new_board.bus = board.bus
+            new_board.address = board.address
+            new_board.product_name = board.product
+            new_board.vendor_name = board.manufacturer
+            new_board.serial_number = board.serial_number
             new_board.start_rx()
             boards.append(new_board)
             
@@ -168,6 +169,9 @@ class PyUSB(Interface):
     def setPacketCount(self, count):
         # No interface level restrictions on count
         self.packet_count = count
+
+    def __eq__(self, other):
+        return self.bus == other.bus and self.address == other.address
 
     def close(self):
         """

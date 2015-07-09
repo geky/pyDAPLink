@@ -72,8 +72,10 @@ class HidApiUSB(Interface):
             new_board = HidApiUSB()
             new_board.vendor_name = deviceInfo['manufacturer_string']
             new_board.product_name = deviceInfo['product_string']
+            new_board.serial_number = deviceInfo['serial_number']
             new_board.vid = deviceInfo['vendor_id']
             new_board.pid = deviceInfo['product_id']
+            new_board.path = deviceInfo['path']
             new_board.device = dev
             try:
                 dev.open(vid, pid)
@@ -111,3 +113,6 @@ class HidApiUSB(Interface):
     def setPacketCount(self, count):
         # No interface level restrictions on count
         self.packet_count = count
+
+    def __eq__(self, other):
+        return self.path == other.path

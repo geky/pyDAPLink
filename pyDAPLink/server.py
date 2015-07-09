@@ -21,8 +21,10 @@ from .socket import default_server
 from .utility import pack, unpack
 import logging
 import threading
-from threading import Thread
+from threading import Thread, Lock
+from weakref import WeakValueDictionary, WeakSet
 from time import sleep
+import traceback
 import sys
 import os
 
@@ -52,48 +54,129 @@ def command(args_format, resp_format):
 
 
 @command(None, None)
-def pp(server):
+def pp(locals):
     """ Pings server with no side effects """
     pass
 
-@command('HHH', '?')
-def bs(server, vid, pid, number):
-    """ 
-    Selects the nth board with the specified vid and pid.
-    Returns 1 if selected or 0 if board does not exist.
-    """
-    ifs = INTERFACE[usb_backend].getConnectedInterfaces(vid, pid)
+@command('HH', None)
+def bi(locals, vid, pid):
+    """ Set VID and PID to use. """
+    ifs = IfSelection(vid, pid)
+    ifs.enumerate()
 
-    if number >= len(ifs):
-        server._select_if(None)
-        return False
-    
-    server._select_if(ifs[number])
-    return True
+    locals.ifs = ifs
+    locals.id = None
 
-@command(None, '?')
-def bl(server):
-    """ 
-    Tries to lock current board so only the current socket 
-    can perform transactions with it.
-    Returns 1 if locked or 0 if board is already locked.
+@command(None, '*')
+def bl(locals):
     """
-    raise NotImplementedError()
+    Lists all connected boards with the select VID and PID.
+    Lists boards as 16-bit ids which can be used to get more 
+    information.
+    """
+    return ''.join(pack('H', id) for id in locals.ifs.ids())
+
+@command('H', 'B')
+def bs(locals, id):
+    """ 
+    Selects the board with the specified bus and address.
+    Returns 0 if board was selected, 1 if board is selected
+    by another process, or 2 if the board does not exist.
+    """
+    locals.id = None
+
+    try:
+        if locals.ifs.select(id):
+            locals.id = id
+            return 0
+        else:
+            return 1
+    except KeyError:
+        return 2
 
 @command(None, None)
-def bu(server):
-    """ Unlocks current board so it can be used by another process. """
-    raise NotImplementedError()
-    
-@command(None, '*')
-def bv(server):
-    """ Returns the current board's vendor name. """
-    return server._current_if().vendor_name
+def bd(locals):
+    """ Unselects current board so it can be used by another process. """
+    try:
+        locals.ifs.deselect(locals.id)
+    except KeyError:
+        pass
 
-@command(None, '*')
-def bp(server):
-    """ Returns the current board's product name. """
-    return server._current_if().product_name
+    locals.id = None
+
+@command('H', '*')
+def bv(locals, id):
+    """ Returns the specified board's vendor name. """
+    return locals.ifs[id].vendor_name
+
+@command('H', '*')
+def bp(locals, id):
+    """ Returns the specified board's product name. """
+    return locals.ifs[id].product_name
+
+@command('H', '*')
+def bn(locals, id):
+    """ Returns the specified board's serial number. """
+    return locals.ifs[id].serial_number
+
+
+class IfSelection(object):
+    selections = WeakValueDictionary()
+    selections_lock = Lock()
+
+    def __new__(cls, vid, pid):
+        with IfSelection.selections_lock:
+            if (vid, pid) in IfSelection.selections:
+                return IfSelection.selections[vid, pid]
+            else:
+                selection = super(IfSelection, cls).__new__(cls, vid, pid)
+                IfSelection.selections[vid, pid] = selection
+                return selection
+
+    def __init__(self, vid, pid):
+        self.vid = vid
+        self.pid = pid
+        self._lock = Lock()
+        self._ifs = {}
+        self._daplinks = {}
+        self._owners = {}
+
+    def enumerate(self):
+        with self._lock:
+            # Find and store all intefaces that match the vid/pid
+            # in the cache for the lifetime of this selection.
+            # We need to make sure no existing interface's ids change
+            new_ifs = INTERFACE[usb_backend].getConnectedInterfaces(self.vid, self.pid)
+
+            for new_if in new_ifs:
+                if new_if not in self._ifs.values():
+                    new_id = next(id for id in xrange(1, 2**16)
+                                  if id not in self._ifs)
+
+                    self._ifs[new_id] = new_if
+
+    def ids(self):
+        with self._lock:
+            return self._ifs.keys()
+
+    def __getitem__(self, id):
+        with self._lock:
+            return self._ifs[id]
+
+    def select(self, id):
+        with self._lock:
+            if id not in self._ifs:
+                raise KeyError(id)
+
+            if id in self._owners and self._owners[id].is_alive():
+                return None
+
+            self._owners[id] = threading.current_thread()
+            return self._ifs[id]
+
+    def deselect(self, id):
+        with self._lock:
+            del self._owners[id]
 
 
 class DAPLinkServer(object):
@@ -103,15 +186,15 @@ class DAPLinkServer(object):
     formed as 2-byte command, 2-byte length, and then the payload.
 
     Error responses:
-    [ 'xu' | 2 | failed command ] unsupported command
-    [ 'xe' | 2 | failed command ] unknown error has occured
-    [ 'xx' | 0 ] malformed command
+    [ 'xu' | len | message ] unsupported command
+    [ 'xe' | len | message ] unknown error has occured
+    [ 'xx' | len | message ] malformed command
     """
 
     def __init__(self, address=None):
         self._server = default_server(*[address] if address else [])
         self._threads = set()
-        self._ifs = {}
+        self.locals = threading.local()
 
     def init(self):
         self._server.init()
@@ -122,18 +205,14 @@ class DAPLinkServer(object):
         thread.start()
         self._threads.add(thread)
 
+    @property
     def client_count(self):
         # Each client gets it's own thread
         return max(len(self._threads)-1, 0)
 
-    def _select_if(self, interface):
-        if interface:
-            self._ifs[threading.current_thread()] = interface
-        else:
-            del self._ifs[threading.current_thread()]
-
-    def _current_if(self):
-        return self._ifs[threading.current_thread()]
+    @property
+    def address(self):
+        return self._server.address
 
     def _server_task(self):
         try:
@@ -147,8 +226,7 @@ class DAPLinkServer(object):
                     thread.start()
                     self._threads.add(thread)
         finally:
-            thread = threading.current_thread()
-            self._threads.remove(thread)
+            self._threads.remove(threading.current_thread())
 
     def _client_task(self, client):
         try:
@@ -158,7 +236,8 @@ class DAPLinkServer(object):
                 if not client.isalive():
                     break
                 elif len(data) < 4:
-                    client.send(pack('2sH', 'xx', 0))
+                    message = 'Malformed command'
+                    client.send(pack('2sH*', 'xx', len(message), message))
                     continue
                
                 command, size = unpack('2sH', data)
@@ -167,32 +246,31 @@ class DAPLinkServer(object):
                 if not client.isalive():
                     break
                 elif len(data) != size:
-                    client.send(pack('2sH', 'xx', 0))
+                    message = 'Malformed command'
+                    client.send(pack('2sH*', 'xx', len(message), message))
                     continue
 
                 self._handle_command(client, command, data)
         finally:
             client.close()
-            thread = threading.current_thread()
-
-            self._threads.remove(thread)
-            if thread in self._ifs:
-                del self._ifs[thread]
+            self._threads.remove(threading.current_thread())
         
     def _handle_command(self, client, command, data):
         if command not in COMMANDS:
-            client.send(pack('2sH2s', 'xu', 2, command))
+            message = 'Unsupported command: %s' % command
+            client.send(pack('2sH*', 'xu', len(message), message))
             return
 
         try:
-            resp = COMMANDS[command](self, data)
+            resp = COMMANDS[command](self.locals, data)
         except:
-            exc_info = sys.exc_info()
+            exc = sys.exc_info()
             try:
-                client.send(pack('2sH2s', 'xe', 2, command))
+                message = traceback.format_exception_only(exc[0], exc[1])
+                client.send(pack('2sH*', 'xe', len(message), message))
             except:
                 pass
-            raise exc_info[0], exc_info[1], exc_info[2]
+            raise exc[0], exc[1], exc[2]
         else:
             client.send(pack('2sH*', command, len(resp), resp))
 

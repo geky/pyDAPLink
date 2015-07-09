@@ -47,6 +47,9 @@ class Interface(object):
     def getPacketCount(self):
         return self.packet_count
 
+    def __eq__(self):
+        return
+
     def close(self):
         return
     

@@ -85,6 +85,7 @@ class PyWinUSB(Interface):
                     new_board.product_name = dev.product_name
                     new_board.vid = dev.vendor_id
                     new_board.pid = dev.product_id
+                    new_board.path = dev.device_path
                     new_board.device = dev
                     new_board.device.set_raw_data_handler(new_board.rx_handler)
                         
@@ -117,6 +118,9 @@ class PyWinUSB(Interface):
     def setPacketCount(self, count):
         # No interface level restrictions on count
         self.packet_count = count
+
+    def __eq__(self, other):
+        return self.path == other.path
 
     def close(self):
         """
