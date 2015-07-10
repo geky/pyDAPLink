@@ -112,15 +112,15 @@ class DAPLinkConnection(object):
     def reset(self):
         """ Resets device. """
         self._select()
-        self._command('rr')
+        self._command('lr')
         self._deselect()
 
     def assertReset(self, asserted):
         """ Asserts reset on device. """
         self._select()
         if asserted:
-            self._command('ra')
+            self._command('la')
         else:
-            self._command('rd')
+            self._command('ld')
         self._deselect()
 

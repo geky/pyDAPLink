@@ -41,7 +41,8 @@ def command(args_format, resp_format):
                 return pack(resp_format, *resp)
             else:
                 return ''
-            
+
+        assert func.__name__ not in COMMANDS
         COMMANDS[func.__name__] = converter
 
     return wrapper
@@ -114,39 +115,126 @@ def bn(locals, id):
     """ Returns the specified board's serial number. """
     return locals.ifs[id].serial_number
 
-
 @command('I', None)
 def li(locals, frequency):
     """ Initializes a DAPLink connection with specified frequency. """
     interface = locals.ifs[locals.id]
     locals.daplink = DAPLinkCore(interface)
     locals.daplink.init(frequency)
+    locals.dapreads = []
 
 @command(None, None)
 def lu(locals):
     """ Uninitializes a DAPLink connection. """
     locals.daplink.uninit()
     del locals.daplink
+    del locals.dapreads
 
 @command('I', None)
 def lc(locals, frequency):
     """ Change a DAPLink connection's frequency. """
     locals.daplink.setClock(frequency)
 
+@command('*', '*')
+def lq(locals, query):
+    """ Query DAPLink info. """
+    return locals.daplink.info(query)
+
 
 @command(None, None)
-def rr(locals):
+def lr(locals):
     """ Resets the device. """
     locals.daplink.reset()
 
 @command(None, None)
-def ra(locals):
+def la(locals):
     """ Asserts reset on the device. """
     locals.daplink.assertReset(True)
 
 @command(None, None)
-def rd(locals):
+def ld(locals):
     """ Deasserts reset on the device. """
     locals.daplink.assertReset(False)
 
 
+@command('II', None)
+def wd(locals, address, data):
+    """ Write to DP. """
+    locals.daplink.writeDP(address, data)
+
+@command('I', None)
+def rd(locals, address):
+    """ Read from DP. """
+    locals.daplink.readDP(address)
+    locals.dapreads.append(lambda d: pack('I', d))
+
+@command('II', None)
+def wa(locals, address, data):
+    """ Write to AP. """
+    locals.daplink.writeAP(address, data)
+
+@command('I', None)
+def ra(locals, address):
+    """ Read from AP. """
+    locals.daplink.readAP(address)
+    locals.dapreads.append(lambda d: pack('I', d))
+
+@command('IB', None)
+def w1(locals, address, data):
+    """ Writes to an 8-bit memory location. """
+    locals.daplink.writeMem(address, data, 8)
+
+@command('I', None)
+def r1(locals, address):
+    """ Reads an 8-bit memory location. """
+    locals.daplink.readMem(address, 8)
+    locals.dapreads.append(lambda d: pack('B', d))
+
+@command('IH', None)
+def w2(locals, address, data):
+    """ Writes to an 16-bit memory location. """
+    locals.daplink.writeMem(address, data, 16)
+
+@command('I', None)
+def r2(locals, address):
+    """ Reads an 16-bit memory location. """
+    locals.daplink.readMem(address, 16)
+    locals.dapreads.append(lambda d: pack('H', d))
+
+@command('II', None)
+def w4(locals, address, data):
+    """ Writes to an 32-bit memory location. """
+    locals.daplink.writeMem(address, data, 32)
+
+@command('I', None)
+def r4(locals, address):
+    """ Reads an 32-bit memory location. """
+    locals.daplink.readMem(address, 32)
+    locals.dapreads.append(lambda d: pack('I', d))
+
+@command('I*', None)
+def wb(locals, address, data):
+    """ Write word-aligned block to memory. """
+    data = [unpack('I', data[i:i+4])[0]
+            for i in range(0, len(data), 4)]
+    locals.daplink.writeBlock32(address, data)
+
+@command('II', None)
+def rb(locals, address, count):
+    """ Read word-aligned block from memory. """
+    def packBlock(block):
+        return ''.join(pack('I', i) for i in block)
+
+    locals.daplink.readBlock32(address, count)
+    locals.dapreads.append(packBlock)
+
+@command(None, '*')
+def ff(locals):
+    """ Flushes and completes transfer,
+        responds with all data that has been collected.
+    """
+    results = locals.daplink.flush()
+    reads = locals.dapreads
+    locals.dapreads = []
+
+    return ''.join(read(result) for read, result in zip(reads, results))
