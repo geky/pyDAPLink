@@ -15,11 +15,15 @@
  limitations under the License.
 """
 
-from .daplink import DAPLinkCore as DAPLink
-from .daplink import AP_REG, DP_REG
 from .server import DAPLinkServer
 from .client import DAPLinkClient
+from .client import READ_NOW, READ_START, READ_END
+from .daplink import AP_REG, DP_REG
 from .errors import TransferError, CommandError
+
+# alias DAPLinkClient as main DAPLink class
+DAPLink = DAPLinkClient
+
 
 from ._version import version as __version__
 

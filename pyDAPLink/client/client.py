@@ -64,6 +64,9 @@ class DAPLinkClient(object):
         if server_version != __version__:
             logging.warning('Server and client are not the same version')
 
+    def uninit(self):
+        self._client.uninit()
+
     @property
     def address(self):
         return self._client.address
@@ -102,7 +105,4 @@ class DAPLinkClient(object):
                   for id in ids]
 
         return boards
-
-    def uninit(self):
-        self._client.uninit()
 

@@ -289,7 +289,7 @@ class DAPLinkCore(object):
         results = []
 
         for count, handler in self._handler_list:
-            res = handler(self._response_list[0:count])
+            res = handler(self._response_list[:count])
             self._response_list = self._response_list[count:]
             results.append(res)
 

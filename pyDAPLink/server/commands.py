@@ -138,7 +138,7 @@ def lc(locals, frequency):
 @command('*', '*')
 def lq(locals, query):
     """ Query DAPLink info. """
-    return locals.daplink.info(query)
+    return locals.daplink.info(query) or ''
 
 
 @command(None, None)

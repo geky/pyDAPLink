@@ -112,13 +112,13 @@ class DAPLinkServer(object):
         try:
             resp = COMMANDS[command](self.locals, data)
         except:
-            exc = sys.exc_info()
             try:
+                exc = sys.exc_info()
                 message = traceback.format_exception_only(exc[0], exc[1])[-1]
+                logging.error(message)
                 client.send(pack('2sH*', 'xe', len(message), message))
             except:
                 pass
-            raise exc[0], exc[1], exc[2]
         else:
             client.send(pack('2sH*', command, len(resp), resp))
 
