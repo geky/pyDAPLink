@@ -24,6 +24,7 @@ import traceback
 import sys
 import os
 
+import commands
 from .commands import COMMANDS
 
 
@@ -78,6 +79,8 @@ class DAPLinkServer(object):
 
     def _client_task(self, client):
         try:
+            commands.init(self.locals)
+
             while True:
                 data = client.recv(4)
 
@@ -100,6 +103,7 @@ class DAPLinkServer(object):
 
                 self._handle_command(client, command, data)
         finally:
+            commands.uninit(self.locals)
             client.close()
             self._threads.discard(threading.current_thread())
         

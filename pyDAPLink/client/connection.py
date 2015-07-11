@@ -132,7 +132,14 @@ class DAPLinkConnection(object):
         self._select()
         resp = self._command('lq', '*', '*', request)
         self._deselect()
-        return resp or None
+
+        # Integer values
+        if request in ('CAPABILITIES', 'PACKET_COUNT', 'PACKET_SIZE'):
+            return unpack('I', resp)[0]
+        elif resp:
+            return resp
+        else:
+            return None
 
     def reset(self):
         """ Resets device. """

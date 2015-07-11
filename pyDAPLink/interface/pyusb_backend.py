@@ -168,6 +168,7 @@ class PyUSB(Interface):
 
     def setPacketCount(self, count):
         # No interface level restrictions on count
+        return
         self.packet_count = count
 
     def __eq__(self, other):

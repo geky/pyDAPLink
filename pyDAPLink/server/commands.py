@@ -48,6 +48,21 @@ def command(args_format, resp_format):
     return wrapper
 
 
+def init(locals):
+    """ Sets up client connection. """
+    locals.ifs = None
+    locals.id = None
+
+    locals.daplink = None
+    locals.dapreads = None
+
+def uninit(locals):
+    """ Tears down client connection. """
+    if locals.daplink:
+        locals.daplink.uninit()
+        locals.ifs[locals.id].close()
+
+
 @command(None, '*')
 def sv(locals):
     """ Gets the version of the server. """
@@ -78,8 +93,7 @@ def bs(locals, id):
     Returns 0 if board was selected, 1 if board is selected
     by another process, or 2 if the board does not exist.
     """
-    if hasattr(locals, 'id'):
-        del locals.id
+    locals.id = None
 
     try:
         if locals.ifs.select(id):
@@ -115,10 +129,12 @@ def bn(locals, id):
     """ Returns the specified board's serial number. """
     return locals.ifs[id].serial_number
 
+
 @command('I', None)
 def li(locals, frequency):
     """ Initializes a DAPLink connection with specified frequency. """
     interface = locals.ifs[locals.id]
+    interface.init()
     locals.daplink = DAPLinkCore(interface)
     locals.daplink.init(frequency)
     locals.dapreads = []
@@ -127,8 +143,9 @@ def li(locals, frequency):
 def lu(locals):
     """ Uninitializes a DAPLink connection. """
     locals.daplink.uninit()
-    del locals.daplink
-    del locals.dapreads
+    locals.daplink = None
+    locals.dapreads = None
+    locals.ifs[locals.id].close()
 
 @command('I', None)
 def lc(locals, frequency):
@@ -138,8 +155,14 @@ def lc(locals, frequency):
 @command('*', '*')
 def lq(locals, query):
     """ Query DAPLink info. """
-    return locals.daplink.info(query) or ''
+    result = locals.daplink.info(query)
 
+    if isinstance(result, int):
+        return pack('I', result)
+    elif result:
+        return result
+    else:
+        return ''
 
 @command(None, None)
 def lr(locals):

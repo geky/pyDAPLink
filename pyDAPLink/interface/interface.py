@@ -53,4 +53,3 @@ class Interface(object):
     def close(self):
         return
     
-            
