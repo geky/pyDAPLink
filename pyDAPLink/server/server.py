@@ -15,6 +15,7 @@
  limitations under the License.
 """
 
+from .connection import DAPLinkServerConnection
 from ..utility import pack, unpack
 from ..socket import default_server
 import logging
@@ -22,10 +23,7 @@ import threading
 from threading import Thread
 import traceback
 import sys
-import os
 
-import commands
-from .commands import COMMANDS
 
 
 class DAPLinkServer(object):
@@ -43,7 +41,6 @@ class DAPLinkServer(object):
     def __init__(self, address=None):
         self._server = default_server(*[address] if address else [])
         self._threads = set()
-        self.locals = threading.local()
 
     def init(self):
         self._server.init()
@@ -63,6 +60,31 @@ class DAPLinkServer(object):
     def address(self):
         return self._server.address
 
+
+    @staticmethod
+    def _recv(client):
+        data = client.recv(4)
+
+        if not client.isalive():
+            return
+        elif len(data) < 4:
+            raise CommandError('Malformed command')
+
+        command, size = unpack('2sH', data)
+        data = client.recv(size) if size > 0 else ''
+
+        if not client.isalive():
+            return
+        elif len(data) != size:
+            raise CommandError('Malformed command: %s' % command)
+
+        return command, data
+
+    @staticmethod
+    def _send(client, command, data):
+        client.send(pack('2sH*', command, len(data), data))
+
+
     def _server_task(self):
         try:
             while self._server.isalive():
@@ -78,53 +100,40 @@ class DAPLinkServer(object):
             self._threads.discard(threading.current_thread())
 
     def _client_task(self, client):
+        connection = DAPLinkServerConnection()
+        connection.init()
+
         try:
-            commands.init(self.locals)
-
             while True:
-                data = client.recv(4)
+                try:
+                    command = self._recv(client)
+                except CommandError as err:
+                    self._send(client, 'xx', str(err))
+                    continue
 
                 if not client.isalive():
                     break
-                elif len(data) < 4:
-                    message = 'Malformed command'
-                    client.send(pack('2sH*', 'xx', len(message), message))
-                    continue
-               
-                command, size = unpack('2sH', data)
-                data = client.recv(size) if size > 0 else ''
 
-                if not client.isalive():
-                    break
-                elif len(data) != size:
-                    message = 'Malformed command'
-                    client.send(pack('2sH*', 'xx', len(message), message))
+                try:
+                    resp = connection.handle_command(command[0], command[1])
+                except:
+                    exc = sys.exc_info()
+                    message = traceback.format_exception_only(exc[0], exc[1])[-1]
+                    logging.error(message)
+                    self._send(client, 'xe', message)
                     continue
 
-                self._handle_command(client, command, data)
+                if resp is None:
+                    self._send(client, 'xu', 'Unsupported command: %s' % command)
+                    continue
+
+                self._send(client, command[0], resp)
+
         finally:
-            commands.uninit(self.locals)
+            connection.uninit()
             client.close()
             self._threads.discard(threading.current_thread())
-        
-    def _handle_command(self, client, command, data):
-        if command not in COMMANDS:
-            message = 'Unsupported command: %s' % command
-            client.send(pack('2sH*', 'xu', len(message), message))
-            return
 
-        try:
-            resp = COMMANDS[command](self.locals, data)
-        except:
-            try:
-                exc = sys.exc_info()
-                message = traceback.format_exception_only(exc[0], exc[1])[-1]
-                logging.error(message)
-                client.send(pack('2sH*', 'xe', len(message), message))
-            except:
-                pass
-        else:
-            client.send(pack('2sH*', command, len(resp), resp))
 
     def uninit(self):
         threads = self._threads.copy()
@@ -134,5 +143,4 @@ class DAPLinkServer(object):
             thread.join()
 
         self._server.uninit()
-
 

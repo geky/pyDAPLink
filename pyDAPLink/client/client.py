@@ -15,7 +15,7 @@
  limitations under the License.
 """
 
-from .connection import DAPLinkConnection
+from .connection import DAPLinkClientConnection
 from ..socket import default_client
 from ..utility import pack, unpack
 from ..utility import popen_and_detach
@@ -101,7 +101,7 @@ class DAPLinkClient(object):
         ids = [unpack('H', ids[i:i+2])[0]
                for i in range(0, len(ids), 2)]
 
-        boards = [DAPLinkConnection(self, vid, pid, id)
+        boards = [DAPLinkClientConnection(self, vid, pid, id)
                   for id in ids]
 
         return boards

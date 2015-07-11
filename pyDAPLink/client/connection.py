@@ -34,7 +34,7 @@ BYTE_SIZE = { 32: 4, 16: 2, 8: 1 }
 FORMAT = { 32: 'I', 16: 'H', 8: 'B' }
 
 
-class DAPLinkConnection(object):
+class DAPLinkClientConnection(object):
     """
     Implements a DAPLink connection to a specific board.
     Returned from DAPLinkClient.getConnectedBoards, 
