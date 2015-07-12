@@ -133,6 +133,10 @@ class DAPLinkCore(object):
         self._protocol.disconnect()
         return
 
+    @property
+    def interface(self):
+        return self._protocol.interface
+
     def JTAG2SWD(self):
         data = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
         self._protocol.swjSequence(data)

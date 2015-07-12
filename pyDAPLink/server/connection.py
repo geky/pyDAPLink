@@ -53,8 +53,9 @@ class DAPLinkServerConnection(object):
     def uninit(self):
         """ Tears down client connection. """
         if self.dap:
+            interface = self.dap.interface
             self.dap.uninit()
-            self.ifs[self.id].close()
+            interface.close()
 
     def handle(self, data):
         if data['command'] not in COMMANDS:
@@ -139,9 +140,10 @@ class DAPLinkServerConnection(object):
     @command
     def dap_uninit(self, data):
         """ Uninitializes a DAPLink connection. """
+        interface = self.dap.interface
         self.dap.uninit()
         self.dap = None
-        self.ifs[self.id].close()
+        interface.close()
 
     @command
     def dap_clock(self, data):

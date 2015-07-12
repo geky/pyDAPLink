@@ -47,49 +47,13 @@ class DAPLinkClientConnection(object):
         self.product_name = info['product']
         self.serial_number = info['serial']
 
-        self._locked = False
-
+        self._nested_locks = 0
         self.deferred_transfer = False
         self._buffer = []
 
     def __repr__(self):
         return ('<%s %04x:%04x:%x>' % 
                 (self.__class__.__name__, self.vid, self.pid, self.iid))
-
-    def _command(self, *args):
-        """ Defers command handling to client class. """
-        return self._client.command(*args)
-
-    def _select(self):
-        if self._locked:
-            return
-
-        attempts = 0
-
-        while (not self._lock_attempts or attempts < self._lock_attempts):
-            try:
-                data = self._command('board_select', {'id': self.iid})
-
-                if data['selected']:
-                    return
-                else:
-                    attempts += 1
-            except ServerError as err:
-                if err.type == 'KeyError':
-                    raise CommandError('Unable to select device %04x:%04x:%x' % 
-                                       (self.vid, self.pid, self.iid))
-                else:
-                    raise
-        else:
-            raise CommandError('Unable to lock device %04x:%04x:%x, '
-                               'may be in use by another process' % 
-                               (self.vid, self.pid, self.iid))
-
-    def _deselect(self):
-        if self._locked:
-            return
-
-        self._command('board_deselect')
 
     def init(self, frequency=None, lock_attempts=5, new_socket=True):
         """ 
@@ -113,52 +77,88 @@ class DAPLinkClientConnection(object):
         self._command('dap_init', {'frequency': frequency} if frequency else {})
 
     def uninit(self):
-        self._select()
-        self._command('dap_uninit')
-        self.unlock()
+        with self:
+            self._command('dap_uninit')
 
         if self._new_socket:
             self._client.uninit()
 
+
+    def _command(self, *args):
+        """ Defers command handling to client class. """
+        return self._client.command(*args)
+
+    @property
+    def locked(self):
+        return self._nested_locks > 0
+
     def lock(self):
         """ Locks device for exclusive access from this connection. """
-        self._select()
-        self._locked = True
+        self._nested_locks += 1
+        if self._nested_locks > 1:
+            return
+
+        attempts = 0
+
+        while (not self._lock_attempts or attempts < self._lock_attempts):
+            try:
+                data = self._command('board_select', {'id': self.iid})
+
+                if data['selected']:
+                    return
+                else:
+                    attempts += 1
+            except ServerError as err:
+                if err.type == 'KeyError':
+                    raise CommandError('Unable to select device %04x:%04x:%x' % 
+                                       (self.vid, self.pid, self.iid))
+                else:
+                    raise
+        else:
+            raise CommandError('Unable to lock device %04x:%04x:%x, '
+                               'may be in use by another process' % 
+                               (self.vid, self.pid, self.iid))
 
     def unlock(self):
         """ Unlocks device. """
-        self._locked = False
-        self._deselect()
+        if self._nested_locks > 0:
+            self._nested_locks -= 1
+            self._command('board_deselect')
+
+    # Context managements handles locking device
+    def __enter__(self):
+        self.lock()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.unlock()
+
 
     def info(self, request):
-        self._select()
-        resp = self._command('dap_info', {'request': request})
-        self._deselect()
+        with self:
+            resp = self._command('dap_info', {'request': request})
 
-        if 'result' in resp:
-            return resp['result']
-        else:
-            return None
+            if 'result' in resp:
+                return resp['result']
+            else:
+                return None
 
     def reset(self):
         """ Resets device. """
-        self._select()
-        self._command('reset')
-        self._deselect()
+        with self:
+            self._command('reset')
 
     def assertReset(self, asserted):
         """ Asserts reset on device. """
-        self._select()
-        if asserted:
-            self._command('reset_assert')
-        else:
-            self._command('reset_deassert')
-        self._deselect()
+        with self:
+            if asserted:
+                self._command('reset_assert')
+            else:
+                self._command('reset_deassert')
 
     def setClock(self, frequency):
-        self._select()
-        self._command('dap_clock', {'frequency': frequency})
-        self._deselect()
+        with self:
+            self._command('dap_clock', {'frequency': frequency})
 
     def setDeferredTransfer(self, enable):
         """
@@ -188,68 +188,50 @@ class DAPLinkClientConnection(object):
         self.deferred_transfer = enable
 
     def writeDP(self, addr, data):
-        self._select()
-        self._command('write_dp', {'addr': addr, 'data': data})
-        self._write()
-        self._deselect()
+        with self:
+            self._command('write_dp', {'addr': addr, 'data': data})
+            self._write()
 
     def readDP(self, addr, mode = READ_NOW):
-        self._select()
-        if mode in (READ_NOW, READ_START):
-            self._command('read_dp', {'addr': addr})
-        if mode in (READ_NOW, READ_END):
-            resp = self._read()
-        self._deselect()
-
-        if mode in (READ_NOW, READ_END):
-            return resp
+        with self:
+            if mode in (READ_NOW, READ_START):
+                self._command('read_dp', {'addr': addr})
+            if mode in (READ_NOW, READ_END):
+                return self._read()
 
     def writeAP(self, addr, data):
-        self._select()
-        self._command('write_ap', {'addr': addr, 'data': data})
-        self._write()
-        self._deselect()
+        with self:
+            self._command('write_ap', {'addr': addr, 'data': data})
+            self._write()
 
     def readAP(self, addr, mode = READ_NOW):
-        self._select()
-        if mode in (READ_NOW, READ_START):
-            self._command('read_ap', {'addr': addr})
-        if mode in (READ_NOW, READ_END):
-            resp = self._read()
-        self._deselect()
-
-        if mode in (READ_NOW, READ_END):
-            return resp
+        with self:
+            if mode in (READ_NOW, READ_START):
+                self._command('read_ap', {'addr': addr})
+            if mode in (READ_NOW, READ_END):
+                return self._read()
 
     def writeMem(self, addr, data, transfer_size = 32):
-        self._select()
-        self._command('write_%s' % transfer_size, {'addr': addr, 'data': data})
-        self._write()
-        self._deselect()
+        with self:
+            self._command('write_%s' % transfer_size, {'addr': addr, 'data': data})
+            self._write()
 
     def readMem(self, addr, transfer_size = 32, mode = READ_NOW):
-        self._select()
-        if mode in (READ_NOW, READ_START):
-            self._command('read_%s' % transfer_size, {'addr': addr})
-        if mode in (READ_NOW, READ_END):
-            resp = self._read()
-        self._deselect()
-
-        if mode in (READ_NOW, READ_END):
-            return resp
+        with self:
+            if mode in (READ_NOW, READ_START):
+                self._command('read_%s' % transfer_size, {'addr': addr})
+            if mode in (READ_NOW, READ_END):
+                return self._read()
 
     def writeBlock32(self, addr, data):
-        self._select()
-        self._command('write_block', {'addr': addr, 'data': data})
-        self._write()
-        self._deselect()
+        with self:
+            self._command('write_block', {'addr': addr, 'data': data})
+            self._write()
 
     def readBlock32(self, addr, count):
-        self._select()
-        self._command('read_block', {'addr': addr, 'count': count})
-        resp = self._read()
-        self._deselect()
-        return resp
+        with self:
+            self._command('read_block', {'addr': addr, 'count': count})
+            return self._read()
 
     def _write(self):
         """
@@ -272,7 +254,8 @@ class DAPLinkClientConnection(object):
         """
         Clear buffer and flush server
         """
-        self._command('flush')
-        self._buffer = []
+        with self:
+            self._command('flush')
+            self._buffer = []
 
         
