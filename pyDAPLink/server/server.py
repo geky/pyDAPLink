@@ -16,7 +16,8 @@
 """
 
 from .connection import DAPLinkServerConnection
-from ..utility import pack, unpack
+from ..utility import encode, decode
+from ..errors import CommandError
 from ..socket import default_server
 import logging
 import threading
@@ -30,12 +31,7 @@ class DAPLinkServer(object):
     """
     This class provides the DAPLink interface as a streaming socket 
     based server. Communication is performed by sending commands
-    formed as 2-byte command, 2-byte length, and then the payload.
-
-    Error responses:
-    [ 'xu' | len | message ] unsupported command
-    [ 'xe' | len | message ] unknown error has occured
-    [ 'xx' | len | message ] malformed command
+    formed as JSON dictionaries.
     """
 
     def __init__(self, address=None):
@@ -61,30 +57,6 @@ class DAPLinkServer(object):
         return self._server.address
 
 
-    @staticmethod
-    def _recv(client):
-        data = client.recv(4)
-
-        if not client.isalive():
-            return
-        elif len(data) < 4:
-            raise CommandError('Malformed command')
-
-        command, size = unpack('2sH', data)
-        data = client.recv(size) if size > 0 else ''
-
-        if not client.isalive():
-            return
-        elif len(data) != size:
-            raise CommandError('Malformed command: %s' % command)
-
-        return command, data
-
-    @staticmethod
-    def _send(client, command, data):
-        client.send(pack('2sH*', command, len(data), data))
-
-
     def _server_task(self):
         try:
             while self._server.isalive():
@@ -106,29 +78,30 @@ class DAPLinkServer(object):
         try:
             while True:
                 try:
-                    command = self._recv(client)
-                except CommandError as err:
-                    self._send(client, 'xx', str(err))
-                    continue
+                    try:
+                        data = client.recv()
+                        if not client.isalive():
+                            break
 
-                if not client.isalive():
-                    break
+                        data = decode(data)
+                    except:
+                        raise CommandError('Malformed command')
 
-                try:
-                    resp = connection.handle_command(command[0], command[1])
+                    resp = connection.handle(data)
                 except:
                     exc = sys.exc_info()
-                    message = traceback.format_exception_only(exc[0], exc[1])[-1]
-                    logging.error(message)
-                    self._send(client, 'xe', message)
-                    continue
+                    type = exc[0].__name__
+                    message = str(exc[1])
+                    logging.error('%s: %s' % (type, message))
 
-                if resp is None:
-                    self._send(client, 'xu', 'Unsupported command: %s' % command)
-                    continue
+                    try:
+                        client.send(encode({'error': type, 'message': message}))
+                    except:
+                        break
+                    else:
+                        continue
 
-                self._send(client, command[0], resp)
-
+                client.send(encode(resp))
         finally:
             connection.uninit()
             client.close()

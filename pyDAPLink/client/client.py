@@ -17,9 +17,9 @@
 
 from .connection import DAPLinkClientConnection
 from ..socket import default_client
-from ..utility import pack, unpack
+from ..utility import encode, decode
 from ..utility import popen_and_detach
-from ..errors import CommandError
+from ..errors import CommandError, ServerError, TransferError
 from time import sleep
 import logging
 
@@ -59,9 +59,9 @@ class DAPLinkClient(object):
 
         # Check the server's version, this also determines if the server 
         # is actually a daplink server
-        server_version = self._command('sv', None, '*')
+        server_info = self.command('server_info')
 
-        if server_version != __version__:
+        if server_info['version'] != __version__:
             logging.warning('Server and client are not the same version')
 
     def uninit(self):
@@ -71,38 +71,32 @@ class DAPLinkClient(object):
     def address(self):
         return self._client.address
 
-    def _command(self, command, args=None, resp=None, *arglist):
-        raw_args = pack(args, *arglist) if args else ''
-        self._client.send(pack('2sH*', command, len(raw_args), raw_args))
+    def command(self, command, data={}):
+        data['command'] = command
 
-        data = self._client.recv(4)
+        self._client.send(encode(data))
 
-        if not self._client.isalive() or len(data) != 4:
+        resp = decode(self._client.recv())
+        if not self._client.isalive():
             raise IOError("Server disconnected")
 
-        resp_command, size = unpack('2sH', data)
-        data = self._client.recv(size) if size > 0 else ''
-        
-        if not self._client.isalive() or len(data) != size:
-            raise IOError("Server disconnected")
-        elif resp_command.startswith('x'):
-            raise CommandError(data)
-        elif resp_command != command:
-            raise CommandError('Malformed response')
+        if 'error' in resp:
+            if resp['error'] == 'CommandError':
+                raise CommandError(resp['message'])
+            elif resp['error'] == 'TransferError':
+                raise TransferError(resp['message'])
+            else:
+                raise ServerError(resp['error'], resp['message'])
+        elif 'response' not in resp or resp['response'] != command:
+            raise CommandError("Invalid response")
 
-        if resp:
-            resplist = unpack(resp, data)
-            return resplist[0] if len(resplist) == 1 else resplist
+        return resp
 
     def getConnectedBoards(self, vid, pid):
-        self._command('bi', 'HH', None, vid, pid)
-
-        ids = self._command('bl', None, '*')
-        ids = [unpack('H', ids[i:i+2])[0]
-               for i in range(0, len(ids), 2)]
+        data = self.command('board_enumerate', {'vid': vid, 'pid': pid})
 
         boards = [DAPLinkClientConnection(self, vid, pid, id)
-                  for id in ids]
+                  for id in data['ids']]
 
         return boards
 

@@ -21,3 +21,11 @@ class TransferError(ValueError):
 class CommandError(ValueError):
     pass
 
+class ServerError(IOError):
+    def __init__(self, type, message):
+        self.type = type
+        self.message = message
+
+    def __str__(self):
+        return '%s: %s' % (self.type, self.message)
+

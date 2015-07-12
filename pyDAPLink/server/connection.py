@@ -15,8 +15,8 @@
  limitations under the License.
 """
 
-from ..utility import pack, unpack
 from ..daplink import DAPLinkCore
+from ..errors import CommandError
 from .selection import IfSelection
 import logging
 
@@ -25,32 +25,22 @@ from .._version import version as __version__
 
 COMMANDS = {}
 
-def command(args_format, resp_format):
-    """ 
-    Decorator for wrapping commands in pack/unpack calls
-    and storing in the COMMANDS table.
+def command(func):
     """
-    def wrapper(func):
-        def converter(daplink, raw_args):
-            if args_format:
-                args = unpack(args_format, raw_args)
-            else:
-                args = []
+    Decorator for handling commands.
+    """
+    command = func.__name__
 
-            resp = func(daplink, *args)
+    def wrapper(connection, data):
+        assert data['command'] == command
 
-            if resp_format:
-                if not isinstance(resp, tuple):
-                    resp = resp,
-                return pack(resp_format, *resp)
-            else:
-                return ''
+        resp = func(connection, data) or {}
 
-        assert func.__name__ not in COMMANDS
-        COMMANDS[func.__name__] = converter
+        resp['response'] = command
+        return resp
 
-    return wrapper
-
+    assert command not in COMMANDS
+    COMMANDS[command] = wrapper
 
 
 class DAPLinkServerConnection(object):
@@ -58,69 +48,60 @@ class DAPLinkServerConnection(object):
         """ Sets up client connection. """
         self.ifs = None
         self.id = None
-
-        self.daplink = None
-        self.dapreads = None
+        self.dap = None
 
     def uninit(self):
         """ Tears down client connection. """
-        if self.daplink:
-            self.daplink.uninit()
+        if self.dap:
+            self.dap.uninit()
             self.ifs[self.id].close()
 
-    def handle_command(self, command, data):
-        if command not in COMMANDS:
-            return None
+    def handle(self, data):
+        if data['command'] not in COMMANDS:
+            raise CommandError('Unsupported command: %s' % data['command'])
 
-        return COMMANDS[command](self, data)
+        return COMMANDS[data['command']](self, data)
 
 
-    # Server configuration
-    @command(None, '*')
-    def sv(self):
+    # Server information
+    @command
+    def server_info(self, data):
         """ Gets the version of the server. """
-        return __version__
+        return {'version': __version__}
 
 
     # Board handling
-    @command('HH', None)
-    def bi(self, vid, pid):
-        """ Set VID and PID to use. """
-        ifs = IfSelection(vid, pid)
+    @command
+    def board_enumerate(self, data):
+        """ 
+        Sets VID and PID to use.
+
+        Lists all connected boards with the specified VID/PID
+        as 16-bit IDs which can be used to get more information.
+        """
+        ifs = IfSelection(data['vid'], data['pid'])
         ifs.enumerate()
 
         self.ifs = ifs
+        return {'ids': self.ifs.ids()}
 
-    @command(None, '*')
-    def bl(self):
+    @command
+    def board_select(self, data):
         """
-        Lists all connected boards with the select VID and PID.
-        Lists boards as 16-bit ids which can be used to get more 
-        information.
+        Selects board with specified id.
+        Response is false if board is selected by another process.
         """
-        return ''.join(pack('H', id) for id in self.ifs.ids())
-
-    @command('H', 'B')
-    def bs(self, id):
-        """ 
-        Selects the board with the specified bus and address.
-        Returns 0 if board was selected, 1 if board is selected
-        by another process, or 2 if the board does not exist.
-        """
+        # Erase id so it doesn't accidentally get used if error occurs
         self.id = None
 
-        try:
-            if self.ifs.select(id):
-                self.id = id
-                return 0
-            else:
-                return 1
-        except KeyError:
-            return 2
+        if self.ifs.select(data['id']):
+            self.id = data['id']
+            return {'selected': True}
+        else:
+            return {'selected': False}
 
-    @command(None, None)
-    def bd(self):
-        """ Unselects current board so it can be used by another process. """
+    @command
+    def board_deselect(self, data):
         try:
             self.ifs.deselect(self.id)
         except KeyError:
@@ -128,152 +109,148 @@ class DAPLinkServerConnection(object):
 
         self.id = None
 
-    @command('H', '*')
-    def bv(self, id):
-        """ Returns the specified board's vendor name. """
-        return self.ifs[id].vendor_name
+    @command
+    def board_info(self, data):
+        """ 
+        Returns the specified board's vendor name, product name,
+        and serial number.
+        """
+        interface = self.ifs[data['id']]
 
-    @command('H', '*')
-    def bp(self, id):
-        """ Returns the specified board's product name. """
-        return self.ifs[id].product_name
-
-    @command('H', '*')
-    def bn(self, id):
-        """ Returns the specified board's serial number. """
-        return self.ifs[id].serial_number
+        return {'vendor':  interface.vendor_name,
+                'product': interface.product_name,
+                'serial':  interface.serial_number}
 
 
     # DAPLink connection
-    @command('I', None)
-    def li(self, frequency):
-        """ Initializes a DAPLink connection with specified frequency. """
+    @command
+    def dap_init(self, data):
+        """ 
+        Initializes a DAPLink connection. 
+        The DAP uses the frequency if specified
+        """
+        freq = data.get('frequency')
+
         interface = self.ifs[self.id]
         interface.init()
-        self.daplink = DAPLinkCore(interface)
-        self.daplink.init(frequency)
-        self.dapreads = []
+        self.dap = DAPLinkCore(interface)
+        self.dap.init(*[freq] if freq else [])
 
-    @command(None, None)
-    def lu(self):
+    @command
+    def dap_uninit(self, data):
         """ Uninitializes a DAPLink connection. """
-        self.daplink.uninit()
-        self.daplink = None
-        self.dapreads = None
+        self.dap.uninit()
+        self.dap = None
         self.ifs[self.id].close()
 
-    @command('I', None)
-    def lc(self, frequency):
+    @command
+    def dap_clock(self, data):
         """ Change a DAPLink connection's frequency. """
-        self.daplink.setClock(frequency)
+        self.dap.setClock(data['frequency'])
 
-    @command('*', '*')
-    def lq(self, query):
-        """ Query DAPLink info. """
-        result = self.daplink.info(query)
+    @command
+    def dap_info(self, data):
+        """ Queries DAPLink info. """
+        result = self.dap.info(data['request'])
 
-        if isinstance(result, int):
-            return pack('I', result)
-        elif result:
-            return result
-        else:
-            return ''
+        if result:
+            return {'result': result}
 
-    @command(None, None)
-    def lr(self):
+
+    # Reset handling
+    @command
+    def reset(self, data):
         """ Resets the device. """
-        self.daplink.reset()
+        self.dap.reset()
 
-    @command(None, None)
-    def la(self):
+    @command
+    def reset_assert(self, data):
         """ Asserts reset on the device. """
-        self.daplink.assertReset(True)
+        self.dap.assertReset(True)
 
-    @command(None, None)
-    def ld(self):
+    @command
+    def reset_deassert(self, data):
         """ Deasserts reset on the device. """
-        self.daplink.assertReset(False)
+        self.dap.assertReset(False)
 
 
     # Read/write commands
-    @command('II', None)
-    def wd(self, address, data):
+    @command
+    def write_dp(self, data):
         """ Write to DP. """
-        self.daplink.writeDP(address, data)
+        self.dap.writeDP(data['addr'], data['data'])
 
-    @command('I', None)
-    def rd(self, address):
+    @command
+    def read_dp(self, data):
         """ Read from DP. """
-        self.daplink.readDP(address)
-        self.dapreads.append(lambda d: pack('I', d))
+        self.dap.readDP(data['addr'])
 
-    @command('II', None)
-    def wa(self, address, data):
+    @command
+    def write_ap(self, data):
         """ Write to AP. """
-        self.daplink.writeAP(address, data)
+        self.dap.writeAP(data['addr'], data['data'])
 
-    @command('I', None)
-    def ra(self, address):
+    @command
+    def read_ap(self, data):
         """ Read from AP. """
-        self.daplink.readAP(address)
-        self.dapreads.append(lambda d: pack('I', d))
+        self.dap.readAP(data['addr'])
 
-    @command('IB', None)
-    def w1(self, address, data):
+    @command
+    def write_8(self, data):
         """ Writes to an 8-bit memory location. """
-        self.daplink.writeMem(address, data, 8)
+        self.dap.writeMem(data['addr'], data['data'], 8)
 
-    @command('I', None)
-    def r1(self, address):
+    @command
+    def read_8(self, data):
         """ Reads an 8-bit memory location. """
-        self.daplink.readMem(address, 8)
-        self.dapreads.append(lambda d: pack('B', d))
+        self.dap.readMem(data['addr'], 8)
 
-    @command('IH', None)
-    def w2(self, address, data):
+    @command
+    def write_16(self, data):
         """ Writes to an 16-bit memory location. """
-        self.daplink.writeMem(address, data, 16)
+        self.dap.writeMem(data['addr'], data['data'], 16)
 
-    @command('I', None)
-    def r2(self, address):
+    @command
+    def read_16(self, data):
         """ Reads an 16-bit memory location. """
-        self.daplink.readMem(address, 16)
-        self.dapreads.append(lambda d: pack('H', d))
+        self.dap.readMem(data['addr'], 16)
 
-    @command('II', None)
-    def w4(self, address, data):
+    @command
+    def write_32(self, data):
         """ Writes to an 32-bit memory location. """
-        self.daplink.writeMem(address, data, 32)
+        self.dap.writeMem(data['addr'], data['data'], 32)
 
-    @command('I', None)
-    def r4(self, address):
+    @command
+    def read_32(self, data):
         """ Reads an 32-bit memory location. """
-        self.daplink.readMem(address, 32)
-        self.dapreads.append(lambda d: pack('I', d))
+        self.dap.readMem(data['addr'], 32)
 
-    @command('I*', None)
-    def wb(self, address, data):
-        """ Write word-aligned block to memory. """
-        data = [unpack('I', data[i:i+4])[0]
-                for i in range(0, len(data), 4)]
-        self.daplink.writeBlock32(address, data)
-
-    @command('II', None)
-    def rb(self, address, count):
-        """ Read word-aligned block from memory. """
-        def packBlock(block):
-            return ''.join(pack('I', i) for i in block)
-
-        self.daplink.readBlock32(address, count)
-        self.dapreads.append(packBlock)
-
-    @command(None, '*')
-    def ff(self):
-        """ Flushes and completes transfer,
-            responds with all data that has been collected.
+    @command
+    def write_block(self, data):
+        """ 
+        Write word-aligned block to memory. 
+        Data must be an array of words.
         """
-        results = self.daplink.flush()
-        reads = self.dapreads
-        self.dapreads = []
+        self.dap.writeBlock32(data['addr'], data['data'])
 
-        return ''.join(read(result) for read, result in zip(reads, results))
+    @command
+    def read_block(self, data):
+        """ 
+        Read word-aligned block from memory. 
+        Number of words must be specified in count.
+        """
+        self.dap.readBlock32(data['addr'], data['count'])
+
+
+    # Flush command obtains data from previous reads and 
+    # garuntees execution of previous writes
+    @command
+    def flush(self, data):
+        """ 
+        Flushes and completes transfer.
+        Responds with all data that has been collected.
+        """
+        reads = self.dap.flush()
+
+        if reads:
+            return {'reads': reads}

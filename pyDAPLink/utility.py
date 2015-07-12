@@ -15,24 +15,30 @@
  limitations under the License.
 """
 
-import struct
 from subprocess import Popen
+from collections import OrderedDict
+import json
 import sys
 import os
 
-# slightly different packing/unpacking to handle multiple args
-def pack(fmt, *args):
-    if fmt.endswith('*'):
-        return struct.pack('!'+fmt[:-1], *args[:-1]) + args[-1]
-    else:
-        return struct.pack('!'+fmt, *args)
 
-def unpack(fmt, string):
-    if fmt.endswith('*'):
-        return (struct.unpack_from('!'+fmt[:-1], string) +
-                (string[struct.calcsize('!'+fmt[:-1]):],))
-    else:
-        return struct.unpack('!'+fmt, string)
+# Encoding and decoding of data over the network.
+# Expects all parameters to be in an instance of dictionary
+def encode(data):
+    assert isinstance(data, dict)
+
+    # Even though ordered is unspecified, we put the 
+    # command/response/error keys in front to help with debugging
+    def isnt_special(entry):
+        return entry[0] not in ('command', 'response', 'error')
+
+    ordered = OrderedDict(sorted(data.iteritems(), key=isnt_special))
+    return json.dumps(ordered, separators=(',',':')) + '\n'
+
+def decode(data):
+    data = json.loads(data)
+    assert isinstance(data, dict)
+    return data
 
 
 # Creating and disowning processes

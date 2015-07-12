@@ -19,7 +19,7 @@ class Connection(object):
     def send(self, data):
         return
 
-    def recv(self, size):
+    def recv(self, size=2**16):
         return
 
     def settimeout(self, timeout):

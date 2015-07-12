@@ -50,7 +50,7 @@ class TCPConnection(Connection):
     def send(self, data):
         self._socket.sendall(data)
 
-    def recv(self, size):
+    def recv(self, size=2**16):
         data = self._socket.recv(size)
         if not data:
             self._isalive = False
