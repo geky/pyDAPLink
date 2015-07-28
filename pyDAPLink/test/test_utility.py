@@ -17,6 +17,8 @@
 
 import pytest
 from pyDAPLink.utility import encode, decode
+from pyDAPLink.utility import UniqueType
+from random import randint
 import string
 
 
@@ -42,3 +44,31 @@ class TestEncodings:
         assert isinstance(decoding['int'],  int)
         assert isinstance(decoding['list'], list)
 
+
+class TestUniqueType:
+    @pytest.mark.parametrize('arg_count', [1, 2, 4])
+    def test_unique_type(self, arg_count):
+        class TestClass(object):
+            __metaclass__ = UniqueType
+
+            def __init__(self, *args):
+                self.args = args
+
+        argset = set()
+        instances = []
+
+        for i in xrange(50):
+            args = tuple(randint(0, 4) for i in xrange(randint(0, arg_count)))
+            argset.add(args)
+
+            instance = TestClass(*args)
+            assert hasattr(instance, 'args')
+            assert instance.args == args
+            instances.append(instance)
+
+        for args in argset:
+            argid = id(TestClass(*args))
+
+            assert all(id(instance) == argid 
+                       for instance in instances
+                       if instance.args == args)

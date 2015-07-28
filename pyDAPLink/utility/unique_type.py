@@ -20,7 +20,7 @@ from weakref import WeakValueDictionary
 
 
 class UniqueType(type):
-    """ Metaclass for types that are globally unique for arguments. """
+    """ Metaclass for types that are globally unique per arguments. """
     def __init__(cls, *args, **kw):
         super(UniqueType, cls).__init__(*args, **kw)
         cls.instances = WeakValueDictionary()

@@ -15,7 +15,7 @@
  limitations under the License.
 """
 
-from .unique_type import UniqueType
+from ..utility import UniqueType
 from ..interface import INTERFACE, usb_backend
 import logging
 import threading
