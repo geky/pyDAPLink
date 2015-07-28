@@ -243,6 +243,7 @@ class DAPLinkCore(object):
 
         try:
             self._writeBlock(len(data), WRITE | AP_ACC | AP_REG['DRW'], data)
+            self._readBlock(4*len(data), lambda resp: None)
         except TransferError:
             self.clearStickyErr()
             raise
@@ -260,7 +261,7 @@ class DAPLinkCore(object):
                      (resp[i*4 + 1] << 8)  |
                      (resp[i*4 + 2] << 16) |
                      (resp[i*4 + 3] << 24) 
-                     for i in range(size)])
+                     for i in xrange(size)])
         except:
             self.clearStickyErr()
             raise
@@ -295,7 +296,9 @@ class DAPLinkCore(object):
         for count, handler in self._handler_list:
             res = handler(self._response_list[:count])
             self._response_list = self._response_list[count:]
-            results.append(res)
+
+            if res is not None:
+                results.append(res)
 
         self._handler_list = []
         return results

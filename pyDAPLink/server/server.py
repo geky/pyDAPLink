@@ -43,7 +43,7 @@ class DAPLinkServer(object):
 
         thread = Thread(target=self._server_task)
         thread.daemon = True
-        thread.shutdown = lambda: self._server.shutdown()
+        thread.shutdown = self._server.shutdown
         thread.start()
         self._threads.add(thread)
 
@@ -65,7 +65,7 @@ class DAPLinkServer(object):
                 if client:
                     thread = Thread(target=lambda: self._client_task(client))
                     thread.daemon = True
-                    thread.shutdown = lambda: client.shutdown()
+                    thread.shutdown = client.shutdown
                     thread.start()
                     self._threads.add(thread)
         finally:

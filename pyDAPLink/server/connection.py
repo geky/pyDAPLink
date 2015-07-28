@@ -154,9 +154,7 @@ class DAPLinkServerConnection(object):
     def dap_info(self, data):
         """ Queries DAPLink info. """
         result = self.dap.info(data['request'])
-
-        if result:
-            return {'result': result}
+        return {'result': result}
 
 
     # Reset handling
