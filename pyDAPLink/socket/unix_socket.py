@@ -23,6 +23,7 @@ import stat
 import socket
 from select import select
 from .socket import Connection, Server, Client, Socket
+from ..utility import socket_pair
 
 
 class UnixConnection(Connection):
@@ -77,7 +78,7 @@ class UnixServer(Server):
             pass
 
         # Create internal socket so we can interrupt our own accept call
-        self._shutdown_pipe = socket.socketpair()
+        self._shutdown_pipe = socket_pair()
 
 
         # Socket can get left if previous server failed to exit cleanly

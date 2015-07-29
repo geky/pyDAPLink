@@ -17,4 +17,5 @@
 
 from encoding import encode, decode
 from popen import popen_and_detach
+from socket_pair import socket_pair
 from unique_type import UniqueType

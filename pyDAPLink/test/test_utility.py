@@ -18,8 +18,10 @@
 import pytest
 from pyDAPLink.utility import encode, decode
 from pyDAPLink.utility import UniqueType
+from pyDAPLink.utility import socket_pair
 from random import randint
 import string
+import select
 
 
 class TestEncodings:
@@ -72,3 +74,16 @@ class TestUniqueType:
             assert all(id(instance) == argid 
                        for instance in instances
                        if instance.args == args)
+
+class TestSocketPair:
+    @pytest.mark.parametrize('order', [(0, 1), (1, 0)])
+    def test_socket_pair(self, order):
+        data = 'Hello World'
+        pair = socket_pair()
+
+        pair[order[0]].sendall(data)
+        ready, _, _ = select.select([pair[0], pair[1]], [], [])
+        assert len(ready) == 1 and ready[0] == pair[order[1]]
+        resp = pair[order[1]].recv(64)
+        assert resp == data
+
