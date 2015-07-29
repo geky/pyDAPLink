@@ -93,6 +93,9 @@ class TCPServer(Server):
         self._timeout = timeout
     
     def init(self):
+        # Create internal socket so we can interrupt our own accept call
+        self._shutdown_pipe = socket.socketpair()
+
         # Create the server socket
         family, type, address = getaddrinfo(self.address)
         self._socket = socket.socket(family, type)
@@ -104,13 +107,14 @@ class TCPServer(Server):
         self._isalive = True
 
     def accept(self):
+        select([self._socket, self._shutdown_pipe[1]], [], [])
+
+        if not self._isalive:
+            return None
+
         conn, _ = self._socket.accept()
         conn.settimeout(self._timeout)
-
-        if self._isalive:
-            return TCPConnection(conn)
-        else:
-            return None
+        return TCPConnection(conn)
 
     def settimeout(self, timeout):
         self._socket.settimeout(timeout)
@@ -120,11 +124,11 @@ class TCPServer(Server):
 
     def shutdown(self):
         self._isalive = False
-        # Create connection to wake up accept call
-        conn = TCPClient('localhost:%d' % self._port)
-        conn.init()
-        conn.uninit()
+        # Use pipe to interrupt accept call
+        self._shutdown_pipe[0].sendall('shutdown')
 
     def uninit(self):
         self._socket.close()
+        self._shutdown_pipe[0].close()
+        self._shutdown_pipe[1].close()
 

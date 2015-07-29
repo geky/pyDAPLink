@@ -25,7 +25,7 @@ class Interface(object):
         self.packet_count = 1
         return
     
-    def init(self):
+    def open(self):
         return
     
     def write(self, data):

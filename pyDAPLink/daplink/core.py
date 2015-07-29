@@ -113,7 +113,7 @@ class DAPLinkCore(object):
             self.JTAG2SWD()
             # read ID code
             self.readDP(DP_REG['IDCODE'])
-            logging.info('IDCODE: 0x%X', self.flush())
+            logging.info('IDCODE: 0x%X', self.flush()[0])
             # clear errors
             self._protocol.writeAbort(0x1e);
         elif (self.mode == DAP_MODE_JTAG):

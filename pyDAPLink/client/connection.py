@@ -212,11 +212,13 @@ class DAPLinkClientConnection(object):
                 return self._read()
 
     def writeMem(self, addr, data, transfer_size = 32):
+        assert transfer_size in (8, 16, 32)
         with self:
             self._command('write_%s' % transfer_size, {'addr': addr, 'data': data})
             self._write()
 
     def readMem(self, addr, transfer_size = 32, mode = READ_NOW):
+        assert transfer_size in (8, 16, 32)
         with self:
             if mode in (READ_NOW, READ_START):
                 self._command('read_%s' % transfer_size, {'addr': addr})

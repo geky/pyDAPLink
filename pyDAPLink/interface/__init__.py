@@ -34,6 +34,7 @@ usb_backend = os.getenv('PYOCD_USB_BACKEND', "")
 if usb_backend and ((usb_backend not in INTERFACE.keys()) or (not INTERFACE[usb_backend].isAvailable)):
     logging.error("Invalid USB backend specified in PYOCD_USB_BACKEND: " + usb_backend)
     usb_backend = ""
+usb_backend = 'hidapiusb'
 
 # Select backend based on OS and availability.
 if not usb_backend:

@@ -21,6 +21,7 @@ from __future__ import absolute_import
 import os
 import stat
 import socket
+from select import select
 from .socket import Connection, Server, Client
 
 
@@ -77,6 +78,10 @@ class UnixServer(Server):
         except OSError:
             pass
 
+        # Create internal socket so we can interrupt our own accept call
+        self._shutdown_pipe = socket.socketpair()
+
+
         # Socket can get left if previous server failed to exit cleanly
         try:
             if stat.S_ISSOCK(os.stat(self.address).st_mode):
@@ -93,25 +98,30 @@ class UnixServer(Server):
         self._isalive = True
 
     def accept(self):
+        select([self._socket, self._shutdown_pipe[1]], [], [])
+
+        if not self._isalive:
+            return None
+
         conn, _ = self._socket.accept()
         conn.settimeout(self._timeout)
-
-        if self._isalive:
-            return UnixConnection(conn)
-        else:
-            return None
+        return UnixConnection(conn)
 
     def isalive(self):
         return self._isalive
 
     def shutdown(self):
         self._isalive = False
-        # Create connection to wake up accept call
-        conn = UnixClient(self.address)
-        conn.init()
-        conn.uninit()
+        # Use pipe to interrupt accept call
+        self._shutdown_pipe[0].sendall('shutdown')
 
     def uninit(self):
         self._socket.close()
-        os.unlink(self.address)
+        self._shutdown_pipe[0].close()
+        self._shutdown_pipe[1].close()
+
+        try:
+            os.unlink(self.address)
+        except OSError:
+            pass
 

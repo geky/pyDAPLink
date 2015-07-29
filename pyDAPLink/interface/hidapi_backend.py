@@ -33,9 +33,6 @@ class HidApiUSB(Interface):
     a USB HID device using cython-hidapi:
         - write/read an endpoint
     """
-    vid = 0
-    pid = 0
-
     isAvailable = isAvailable
 
     def __init__(self):
@@ -45,7 +42,7 @@ class HidApiUSB(Interface):
 
     def open(self):
         try:
-            dev.open(self.vid, self.pid)
+            self.device.open(self.vid, self.pid)
         except AttributeError:
             pass
 
@@ -91,7 +88,7 @@ class HidApiUSB(Interface):
         """
         for _ in range(64 - len(data)):
             data.append(0)
-        #logging.debug("send: %s", data)
+
         self.device.write([0] + data)
         return
 
@@ -106,7 +103,6 @@ class HidApiUSB(Interface):
         """
         close the interface
         """
-        logging.debug("closing interface")
         self.device.close()
 
     def setPacketCount(self, count):

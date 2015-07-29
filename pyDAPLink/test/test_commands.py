@@ -270,7 +270,7 @@ class TestCommands:
         response = command({'command': 'flush'})
         assert 'response' in response and response['response'] == 'flush'
         
-    @pytest.mark.parametrize('reg', ['CSW', 'IDR'])
+    @pytest.mark.parametrize('reg', ['CSW', 'TAR', 'IDR'])
     def test_read_ap(self, command, vid, pid, frequency, reg):
         response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
         id = response['ids'][0]

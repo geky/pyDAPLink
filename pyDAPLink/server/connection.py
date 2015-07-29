@@ -50,6 +50,8 @@ class DAPLinkServerConnection(object):
         self.id = None
         self.dap = None
 
+        logging.info('client connected')
+
     def uninit(self):
         """ Tears down client connection. """
         if self.dap:
@@ -57,10 +59,13 @@ class DAPLinkServerConnection(object):
             self.dap.uninit()
             interface.close()
 
+        logging.info('client disconnected')
+
     def handle(self, data):
         if data['command'] not in COMMANDS:
             raise CommandError('Unsupported command: %s' % data['command'])
 
+        logging.debug('command: %s', data['command'])
         return COMMANDS[data['command']](self, data)
 
 
@@ -133,7 +138,7 @@ class DAPLinkServerConnection(object):
         freq = data.get('frequency')
 
         interface = self.ifs[self.id]
-        interface.init()
+        interface.open()
         self.dap = DAPLinkCore(interface)
         self.dap.init(*[freq] if freq else [])
 

@@ -46,7 +46,7 @@ def frequency(request):
 @pytest.fixture
 def write_data():
     """ Data to read/write """
-    return [randint(0, 0xffffffff) for i in xrange(50)]
+    return [randint(0, 0xffffffff) for i in xrange(25)]
 
 @pytest.fixture(params=['normal', 'block', 'deferred'])
 def access_type(request):
