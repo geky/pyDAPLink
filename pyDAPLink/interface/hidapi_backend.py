@@ -23,9 +23,9 @@ try:
 except:
     if os.name == "posix" and os.uname()[0] == 'Darwin':
         logging.error("cython-hidapi is required on a Mac OS X Machine")
-    isAvailable = False
+    available = False
 else:
-    isAvailable = True
+    available = True
 
 class HidApiUSB(Interface):
     """
@@ -33,7 +33,8 @@ class HidApiUSB(Interface):
     a USB HID device using cython-hidapi:
         - write/read an endpoint
     """
-    isAvailable = isAvailable
+    name = 'hidapiusb'
+    available = available
 
     def __init__(self):
         super(HidApiUSB, self).__init__()

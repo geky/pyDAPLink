@@ -16,7 +16,7 @@
 """
 
 from ..utility import UniqueType
-from ..interface import INTERFACE, usb_backend
+from ..interface import default_interface
 import logging
 import threading
 from threading import Lock
@@ -34,12 +34,12 @@ class IfSelection(object):
         self._daplinks = {}
         self._owners = {}
 
-    def enumerate(self):
+    def enumerate(self, interface=default_interface):
         with self._lock:
             # Find and store all intefaces that match the vid/pid
             # in the cache for the lifetime of this selection.
             # We need to make sure no existing interface's ids change
-            new_ifs = INTERFACE[usb_backend].getConnectedInterfaces(self.vid, self.pid)
+            new_ifs = interface.getConnectedInterfaces(self.vid, self.pid)
 
             for new_if in new_ifs or []:
                 if new_if not in self._ifs.values():

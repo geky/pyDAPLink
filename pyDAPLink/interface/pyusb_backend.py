@@ -24,22 +24,18 @@ try:
 except:
     if os.name == "posix" and not os.uname()[0] == 'Darwin':
         logging.error("PyUSB is required on a Linux Machine")
-    isAvailable = False
+    available = False
 else:
-    isAvailable = True
+    available = True
 
 class PyUSB(Interface):
     """
     This class provides basic functions to access
     a USB HID device using pyusb:
         - write/read an endpoint
-    """
-    
-    vid         = 0
-    pid         = 0
-    intf_number = 0
-    
-    isAvailable = isAvailable
+    """    
+    name = 'pyusb'
+    available = available
 
     def __init__(self):
         super(PyUSB, self).__init__()

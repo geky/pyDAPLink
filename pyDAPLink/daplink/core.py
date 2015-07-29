@@ -17,7 +17,6 @@
 
 from .protocol import CMSIS_DAP
 from ..errors import TransferError
-from ..interface import INTERFACE, usb_backend
 import logging
 from time import sleep
 

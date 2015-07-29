@@ -22,10 +22,8 @@ import os
 import stat
 import socket
 from select import select
-from .socket import Connection, Server, Client
+from .socket import Connection, Server, Client, Socket
 
-
-isAvailable = hasattr(socket, 'AF_UNIX')
 
 class UnixConnection(Connection):
     def __init__(self, socket):
@@ -124,4 +122,16 @@ class UnixServer(Server):
             os.unlink(self.address)
         except OSError:
             pass
+
+
+class UnixSocket(Socket):
+    name = 'unix'
+    available = hasattr(socket, 'AF_UNIX')
+
+    @staticmethod
+    def addrisvalid(address):
+        return os.access(os.path.dirname(address), os.W_OK)
+
+    Client = UnixClient
+    Server = UnixServer
 

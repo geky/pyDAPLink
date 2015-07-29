@@ -21,26 +21,8 @@ from __future__ import absolute_import
 import os
 import socket
 from select import select
-from .socket import Connection, Server, Client
+from .socket import Connection, Server, Client, Socket
 
-
-isAvailable = True
-
-def getaddrinfo(address):
-    """ Looks up family, type, and underlying ip address for
-        the 'hostname:port' address string representation
-    """
-    # parse host and port values
-    host, port = address.rsplit(':', 1)
-    port = int(port)
-    if host.startswith('[') and host.endswith(']'):
-        host = host[1:-1]
-
-    # lookup hostname
-    info = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
-    family, type, _, _, address = info[0]
-
-    return family, type, address
 
 class TCPConnection(Connection):
     def __init__(self, socket):
@@ -77,7 +59,7 @@ class TCPClient(TCPConnection, Client):
         self._timeout = timeout
 
     def init(self):
-        family, type, address = getaddrinfo(self.address)
+        family, type, address = TCPSocket.getaddrinfo(self.address)
         conn = socket.socket(family, type)
         conn.settimeout(self._timeout)
         conn.connect(address)
@@ -97,8 +79,9 @@ class TCPServer(Server):
         self._shutdown_pipe = socket.socketpair()
 
         # Create the server socket
-        family, type, address = getaddrinfo(self.address)
+        family, type, address = TCPSocket.getaddrinfo(self.address)
         self._socket = socket.socket(family, type)
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.settimeout(self._timeout)
         self._socket.bind(address)
         self._socket.listen(socket.SOMAXCONN)
@@ -131,4 +114,38 @@ class TCPServer(Server):
         self._socket.close()
         self._shutdown_pipe[0].close()
         self._shutdown_pipe[1].close()
+
+
+class TCPSocket(Socket):
+    name = 'tcp'
+    available = True
+
+    @staticmethod
+    def addrisvalid(address):
+        try:
+            TCPSocket.getaddrinfo(address)
+            return True
+        except:
+            return False
+
+    @staticmethod
+    def getaddrinfo(address):
+        """ 
+        Looks up family, type, and underlying ip address for
+        the 'hostname:port' address string representation
+        """
+        # parse host and port values
+        host, port = address.rsplit(':', 1)
+        port = int(port)
+        if host.startswith('[') and host.endswith(']'):
+            host = host[1:-1]
+
+        # lookup hostname
+        info = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
+        family, type, _, _, address = info[0]
+
+        return family, type, address
+
+    Client = TCPClient
+    Server = TCPServer
 

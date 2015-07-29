@@ -19,6 +19,8 @@ import pytest
 from pyDAPLink import DAPLink
 from pyDAPLink import READ_START, READ_END
 from pyDAPLink.daplink import DP_REG, AP_REG
+from pyDAPLink.socket import SOCKET
+from pyDAPLink.interface import INTERFACE
 from random import randint
 
 

@@ -19,6 +19,9 @@ import pytest
 from pyDAPLink import DAPLinkServer
 from pyDAPLink import DAPLinkClient
 from pyDAPLink import DAPLink
+from pyDAPLink.socket import SOCKET
+from pyDAPLink.interface import INTERFACE
+import time
 
 
 @pytest.fixture
@@ -36,11 +39,21 @@ def client_count(request):
     """ Number of clients to test with """
     return request.param
 
+@pytest.fixture(params=SOCKET.keys())
+def socket(request):
+    """ Type of socket connection to use """
+    return request.param
+
+@pytest.fixture(params=INTERFACE.keys())
+def interface(request):
+    """ Type of interface to use """
+    return request.param
+
 
 class TestConnections:
-    def test_single_clients(self, client_count, vid, pid):
+    def test_single_clients(self, socket, interface, client_count, vid, pid):
         for n in xrange(client_count):
-            client = DAPLink()
+            client = DAPLink(socket=socket, interface=interface)
             client.init()
 
             boards = client.getConnectedBoards(vid, pid)
@@ -49,11 +62,11 @@ class TestConnections:
 
             client.uninit()
 
-    def test_simultaneous_clients(self, client_count, vid, pid):
+    def test_simultaneous_clients(self, socket, interface, client_count, vid, pid):
         clients = []
 
         for n in xrange(client_count):
-            client = DAPLink()
+            client = DAPLink(socket=socket, interface=interface)
             client.init()
             clients.append(client)
 
@@ -65,8 +78,8 @@ class TestConnections:
         for client in clients:
             client.uninit()
 
-    def test_successive_clients(self, client_count, vid, pid):
-        client = DAPLink()
+    def test_successive_clients(self, socket, interface, client_count, vid, pid):
+        client = DAPLink(socket=socket, interface=interface)
         client.init()
         previous = client
 
@@ -83,19 +96,31 @@ class TestConnections:
 
         previous.uninit()
 
-    def test_seperate_server(self, client_count, vid, pid):
-        server = DAPLinkServer()
+    def test_seperate_server(self, socket, interface, client_count, vid, pid):
+        if socket == 'unix':
+            address = '/tmp/pydaplink/test-socket'
+        else:
+            address = 'localhost:1234'
+
+        server = DAPLinkServer(address=address, socket=socket, interface=interface)
         server.init()
+
+        assert server.socket == socket
+        assert server.interface == interface
+        assert server.address == address
         assert server.client_count == 0
 
         clients = []
 
         for n in xrange(client_count):
-            client = DAPLinkClient(create_server=False)
+            client = DAPLinkClient(address=address, socket=socket, 
+                                   interface=interface, create_server=False)
             client.init()
             clients.append(client)
 
-            assert server.address == client.address
+            assert client.socket == socket
+            assert client.interface == interface
+            assert client.address == address
 
             boards = client.getConnectedBoards(vid, pid)
             for board in boards:

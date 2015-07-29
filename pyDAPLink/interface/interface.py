@@ -16,6 +16,8 @@
 """
 
 class Interface(object):
+    name = None
+    available = False
     
     def __init__(self):
         self.vid = 0

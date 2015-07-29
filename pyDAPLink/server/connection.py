@@ -44,6 +44,10 @@ def command(func):
 
 
 class DAPLinkServerConnection(object):
+    def __init__(self, interface):
+        """ Create connection. """
+        self._interface = interface
+
     def init(self):
         """ Sets up client connection. """
         self.ifs = None
@@ -86,7 +90,7 @@ class DAPLinkServerConnection(object):
         as 16-bit IDs which can be used to get more information.
         """
         ifs = IfSelection(data['vid'], data['pid'])
-        ifs.enumerate()
+        ifs.enumerate(self._interface)
 
         self.ifs = ifs
         return {'ids': self.ifs.ids()}

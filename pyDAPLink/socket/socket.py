@@ -15,6 +15,7 @@
  limitations under the License.
 """
 
+
 class Connection(object):
     def send(self, data):
         return
@@ -63,3 +64,14 @@ class Server(object):
     def close(self):
         return
 
+
+class Socket(object):
+    name = None
+    available = False
+
+    @staticmethod
+    def addrisvalid(address):
+        return False
+
+    Client = Client
+    Server = Server

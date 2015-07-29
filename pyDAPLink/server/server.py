@@ -18,13 +18,13 @@
 from .connection import DAPLinkServerConnection
 from ..utility import encode, decode
 from ..errors import CommandError
-from ..socket import default_server
+from ..interface import INTERFACE, default_interface
+from ..socket import SOCKET, socket_by_address, default_socket
 import logging
 import threading
 from threading import Thread
 import traceback
 import sys
-
 
 
 class DAPLinkServer(object):
@@ -33,9 +33,26 @@ class DAPLinkServer(object):
     based server. Communication is performed by sending commands
     formed as JSON dictionaries.
     """
+    def __init__(self, address=None, socket=None, interface=None):
+        if interface:
+            self._interface = INTERFACE[interface]
+        else:
+            self._interface = default_interface
 
-    def __init__(self, address=None):
-        self._server = default_server(*[address] if address else [])
+        if socket:
+            socket = SOCKET[socket]
+        elif address:
+            socket = socket_by_address(address)
+        else:
+            socket = default_socket
+
+        if address:
+            self._server = socket.Server(address)
+        else:
+            self._server = socket.Server()
+
+        self.interface = self._interface.name
+        self.socket = socket.name
         self._threads = set()
 
     def init(self):
@@ -72,7 +89,7 @@ class DAPLinkServer(object):
             self._threads.discard(threading.current_thread())
 
     def _client_task(self, client):
-        connection = DAPLinkServerConnection()
+        connection = DAPLinkServerConnection(self._interface)
         connection.init()
 
         try:

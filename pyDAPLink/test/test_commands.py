@@ -17,7 +17,7 @@
 
 import pytest
 from pyDAPLink import DAPLinkServer
-from pyDAPLink.socket import default_client
+from pyDAPLink.socket import default_socket
 from pyDAPLink.utility import encode, decode
 
 # Define address for tests to operate on
@@ -45,7 +45,7 @@ def server(request):
 @pytest.fixture(scope='function')
 def socket(request, server):
     """ Socket connected to server for testing """
-    socket = default_client()
+    socket = default_socket.Client()
     socket.init()
     def cleanup():
         socket.close()

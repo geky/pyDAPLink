@@ -15,21 +15,21 @@
  limitations under the License.
 """
 
-import unix_socket
-import tcp_socket
+from unix_socket import UnixSocket
+from tcp_socket import TCPSocket
 
-CLIENT = {}
-SERVER = {}
+SOCKET = \
+    { socket.name: socket 
+      for socket in (UnixSocket, TCPSocket)
+      if socket.available }
 
-if unix_socket.isAvailable:
-    CLIENT['unix'] = unix_socket.UnixClient
-    SERVER['unix'] = unix_socket.UnixServer
-if tcp_socket.isAvailable:
-    CLIENT['tcp'] = tcp_socket.TCPClient
-    SERVER['tcp'] = tcp_socket.TCPServer
+# Default sockets defined in order of preference
+default_socket = \
+    next(SOCKET[name] 
+         for name in ('unix', 'tcp') 
+         if name in SOCKET)
 
-for type in 'unix', 'tcp':
-    if type in CLIENT.keys() and type in SERVER.keys():
-        default_client = CLIENT[type]
-        default_server = SERVER[type]
-        break
+def socket_by_address(address):
+    for name in ('unix', 'tcp'):
+        if SOCKET[name].addrisvalid(address):
+            return SOCKET[name]

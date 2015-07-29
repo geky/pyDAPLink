@@ -24,16 +24,22 @@ from time import sleep
 import pyDAPLink
 from pyDAPLink import __version__
 from pyDAPLink import DAPLinkServer
+from pyDAPLink.socket import SOCKET
+from pyDAPLink.interface import INTERFACE
 
 
 parser = argparse.ArgumentParser(description='pyDAPLink server')
 parser.add_argument('--version', action='version', version=__version__)
-parser.add_argument('-v', '--verbose', action='store_true', default=False, 
+parser.add_argument('-v', '--verbose', action='count', default=0,
                     help="Enable verbose logging.")
 parser.add_argument('--debug', action='store_true', default=False,
                     help="Enable debug logging.")
 parser.add_argument('-a', '--address', 
                     help="Specify location to use as address for socket.")
+parser.add_argument('-s', '--socket', choices=SOCKET.keys(),
+                    help="Specify socket type.")
+parser.add_argument('-i', '--interface', choices=INTERFACE.keys(),
+                    help="Specify interface.")
 parser.add_argument('--temporary', action='store_true', default=False,
                     help="Exit if no clients are connected.")
 
@@ -45,7 +51,9 @@ def main():
     elif args.verbose:
         logging.basicConfig(level=logging.INFO)
 
-    server = DAPLinkServer(args.address)
+    server = DAPLinkServer(args.address, 
+                           socket=args.socket, 
+                           interface=args.interface)
     server.init()
     print 'pyDAPLink server running'
 

@@ -16,7 +16,8 @@
 """
 
 from .connection import DAPLinkClientConnection
-from ..socket import default_client
+from ..interface import INTERFACE, default_interface
+from ..socket import SOCKET, socket_by_address, default_socket
 from ..utility import encode, decode
 from ..utility import popen_and_detach
 from ..errors import CommandError, ServerError, TransferError
@@ -33,9 +34,27 @@ class DAPLinkClient(object):
     formed as 2-byte command, 2-byte length, and then the command
     specific payload.
     """
+    def __init__(self, address=None, socket=None, interface=None,
+                       create_server=True, connect_attempts=5):
+        if interface:
+            interface = INTERFACE[interface]
+        else:
+            interface = default_interface
 
-    def __init__(self, address=None, create_server=True, connect_attempts=5):
-        self._client = default_client(*[address] if address else [])
+        if socket:
+            socket = SOCKET[socket]
+        elif address:
+            socket = socket_by_address(address)
+        else:
+            socket = default_socket
+
+        if address:
+            self._client = socket.Client(address)
+        else:
+            self._client = socket.Client()
+
+        self.interface = interface.name
+        self.socket = socket.name
         self._create_server = create_server
         self._connect_attempts = connect_attempts
 
@@ -49,9 +68,12 @@ class DAPLinkClient(object):
                 break
             except IOError:
                 if attempts == 0 and self._create_server:
-                    process = popen_and_detach(['pydaplink-server',
-                                                '--temporary',
-                                                '--address', self.address])
+                    process = popen_and_detach([
+                        'pydaplink-server',
+                        '--temporary',
+                        '--address', self.address,
+                        '--socket', self.socket,
+                        '--interface', self.interface])
                 sleep(0.1)
                 attempts += 1
         else:
