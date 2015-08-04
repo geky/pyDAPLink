@@ -19,6 +19,7 @@ import pytest
 from pyDAPLink.utility import encode, decode
 from pyDAPLink.utility import UniqueType
 from pyDAPLink.utility import socket_pair
+from numbers import Integral
 from random import randint
 import string
 import select
@@ -43,7 +44,7 @@ class TestEncodings:
         assert decoding['none'] is None
         assert isinstance(decoding['bool'], bool)
         assert isinstance(decoding['str'],  basestring)
-        assert isinstance(decoding['int'],  int)
+        assert isinstance(decoding['int'],  Integral)
         assert isinstance(decoding['list'], list)
 
 

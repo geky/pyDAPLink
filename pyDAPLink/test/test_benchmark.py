@@ -19,6 +19,7 @@ import pytest
 from pyDAPLink import DAPLink
 from pyDAPLink import READ_START, READ_END
 from pyDAPLink.daplink import DP_REG, AP_REG
+from numbers import Integral
 from random import randint
 from time import time
 
@@ -68,7 +69,7 @@ def enable_debug(board):
     board.writeDP(DP_REG['CTRL_STAT'], CPWRUPREQ)
     while True:
         stat = board.readDP(DP_REG['CTRL_STAT'])
-        assert isinstance(stat, int)
+        assert isinstance(stat, Integral)
         if (stat & CPWRUPACK) == CPWRUPACK:
             break
 

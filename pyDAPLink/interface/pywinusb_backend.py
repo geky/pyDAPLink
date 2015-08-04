@@ -81,6 +81,7 @@ class PyWinUSB(Interface):
                     new_board.report = report[0]
                     new_board.vendor_name = dev.vendor_name
                     new_board.product_name = dev.product_name
+                    new_board.serial_number = dev.serial_number
                     new_board.vid = dev.vendor_id
                     new_board.pid = dev.product_id
                     new_board.path = dev.device_path

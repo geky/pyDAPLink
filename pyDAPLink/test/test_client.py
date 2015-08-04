@@ -21,6 +21,7 @@ from pyDAPLink import READ_START, READ_END
 from pyDAPLink.daplink import DP_REG, AP_REG
 from pyDAPLink.socket import SOCKET
 from pyDAPLink.interface import INTERFACE
+from numbers import Integral
 from random import randint
 
 
@@ -82,7 +83,7 @@ class TestClients:
         board.writeDP(DP_REG['CTRL_STAT'], CPWRUPREQ)
         while True:
             stat = board.readDP(DP_REG['CTRL_STAT'])
-            assert isinstance(stat, int)
+            assert isinstance(stat, Integral)
             if (stat & CPWRUPACK) == CPWRUPACK:
                 break
 
@@ -109,7 +110,7 @@ class TestClients:
                 read = board.readMem(DCRDR)
                 read_data.append(read)
 
-        assert all(isinstance(read, int) for read in read_data)
+        assert all(isinstance(read, Integral) for read in read_data)
         assert read_data == write_data
 
         board.uninit()

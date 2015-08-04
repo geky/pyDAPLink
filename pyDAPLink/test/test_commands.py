@@ -19,6 +19,8 @@ import pytest
 from pyDAPLink import DAPLinkServer
 from pyDAPLink.socket import default_socket
 from pyDAPLink.utility import encode, decode
+from numbers import Integral
+
 
 # Define address for tests to operate on
 DP_REG = {'IDCODE':    0x00,
@@ -115,7 +117,7 @@ class TestCommands:
 
         assert 'response' in response and response['response'] == 'board_enumerate'
         assert 'ids' in response and isinstance(response['ids'], list)
-        assert all(isinstance(id, int) for id in response['ids'])
+        assert all(isinstance(id, Integral) for id in response['ids'])
 
     def test_board_select(self, command, vid, pid):
         response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid}) 
@@ -188,9 +190,9 @@ class TestCommands:
         ('CMSIS_DAP_FW_VERSION', basestring),
         ('TARGET_DEVICE_VENDOR', basestring),
         ('TARGET_DEVICE_NAME',   basestring),
-        ('CAPABILITIES',         int),
-        ('PACKET_COUNT',         int),
-        ('PACKET_SIZE',          int)])
+        ('CAPABILITIES',         Integral),
+        ('PACKET_COUNT',         Integral),
+        ('PACKET_SIZE',          Integral)])
     def test_dap_info(self, command, vid, pid, frequency, info_request, info_type):
         response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
         id = response['ids'][0]
@@ -253,7 +255,7 @@ class TestCommands:
         assert 'response' in response and response['response'] == 'flush'
         assert 'reads' in response and isinstance(response['reads'], list)
         assert len(response['reads']) == 1
-        assert all(isinstance(read, int) for read in response['reads'])
+        assert all(isinstance(read, Integral) for read in response['reads'])
 
     @pytest.mark.parametrize('reg', ['SELECT', 'CTRL_STAT'])
     def test_write_dp(self, command, vid, pid, frequency, reg):
@@ -286,8 +288,8 @@ class TestCommands:
         response = command({'command': 'flush'})
         assert 'response' in response and response['response'] == 'flush'
         assert 'reads' in response and isinstance(response['reads'], list)
-        assert len(response['reads']) == 1 and isinstance(response['reads'][0], int)
-        assert all(isinstance(read, int) for read in response['reads'])
+        assert len(response['reads']) == 1 and isinstance(response['reads'][0], Integral)
+        assert all(isinstance(read, Integral) for read in response['reads'])
 
     @pytest.mark.parametrize('reg', ['CSW', 'TAR'])
     def test_write_ap(self, command, vid, pid, frequency, reg):
@@ -327,7 +329,7 @@ class TestCommands:
         assert 'response' in response and response['response'] == 'flush'
         assert 'reads' in response and isinstance(response['reads'], list)
         assert len(response['reads']) == 32/size
-        assert all(isinstance(read, int) for read in response['reads'])
+        assert all(isinstance(read, Integral) for read in response['reads'])
 
     @pytest.mark.parametrize(('address', 'size'), [
         ('DCRDR', 8),
@@ -369,7 +371,7 @@ class TestCommands:
         assert 'reads' in response and isinstance(response['reads'], list)
         assert len(response['reads']) == 1
         assert all(isinstance(read, list) for read in response['reads'])
-        assert all(isinstance(word, int) for read in response['reads'] 
+        assert all(isinstance(word, Integral) for read in response['reads'] 
                                          for word in read)
 
     @pytest.mark.parametrize(('address', 'count'), [('DCRDR', 1)])

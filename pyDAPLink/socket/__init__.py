@@ -31,5 +31,5 @@ default_socket = \
 
 def socket_by_address(address):
     for name in ('unix', 'tcp'):
-        if SOCKET[name].addrisvalid(address):
+        if name in SOCKET and SOCKET[name].addrisvalid(address):
             return SOCKET[name]
