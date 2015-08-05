@@ -32,8 +32,6 @@ parser = argparse.ArgumentParser(description='pyDAPLink server')
 parser.add_argument('--version', action='version', version=__version__)
 parser.add_argument('-v', '--verbose', action='count', default=0,
                     help="Enable verbose logging.")
-parser.add_argument('--debug', action='store_true', default=False,
-                    help="Enable debug logging.")
 parser.add_argument('-a', '--address', 
                     help="Specify location to use as address for socket.")
 parser.add_argument('-s', '--socket', choices=SOCKET.keys(),
@@ -46,9 +44,9 @@ parser.add_argument('--temporary', action='store_true', default=False,
 def main():
     args = parser.parse_args()
     
-    if args.debug:
+    if args.verbose > 1:
         logging.basicConfig(level=logging.DEBUG)
-    elif args.verbose:
+    elif args.verbose > 0:
         logging.basicConfig(level=logging.INFO)
 
     server = DAPLinkServer(args.address, 

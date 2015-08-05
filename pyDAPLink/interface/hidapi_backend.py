@@ -25,6 +25,10 @@ except:
         logging.error("cython-hidapi is required on a Mac OS X Machine")
     available = False
 else:
+    # On mac, hidapi has issues creating internal state in
+    # multithreaded contexts. An extra call to enumerate 
+    # apparently avoids this problem.
+    hid.enumerate(0, 0)
     available = True
 
 class HidApiUSB(Interface):

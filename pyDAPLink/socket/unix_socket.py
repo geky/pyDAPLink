@@ -45,8 +45,11 @@ class UnixConnection(Connection):
         return self._isalive
 
     def shutdown(self):
-        self._socket.shutdown(2)
         self._isalive = False
+        try:
+            self._socket.shutdown(2)
+        except socket.error:
+            pass
 
     def uninit(self):
         self._socket.close()
