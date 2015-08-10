@@ -64,7 +64,7 @@ class DAPLinkClient(object):
         while (not self._connect_attempts or
                attempts < self._connect_attempts):
             try:
-                self._client.init()
+                self._client.open()
                 break
             except IOError:
                 if attempts == 0 and self._create_server:
@@ -87,7 +87,7 @@ class DAPLinkClient(object):
             logging.warning('Server and client are not the same version')
 
     def uninit(self):
-        self._client.uninit()
+        self._client.close()
 
     @property
     def address(self):

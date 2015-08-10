@@ -20,6 +20,7 @@ from pyDAPLink import DAPLinkServer
 from pyDAPLink.socket import default_socket
 from pyDAPLink.utility import encode, decode
 from numbers import Integral
+import time
 
 
 # Define address for tests to operate on
@@ -48,9 +49,10 @@ def server(request):
 def socket(request, server):
     """ Socket connected to server for testing """
     socket = default_socket.Client()
-    socket.init()
+    socket.open()
     def cleanup():
         socket.close()
+        time.sleep(0.1)
     request.addfinalizer(cleanup)
     return socket
 
@@ -81,7 +83,7 @@ def pid():
     """ PID of device for testing """
     return 0x0204
 
-@pytest.fixture(params=[10**6, 10**7, 10**8])
+@pytest.fixture(params=[10**6])
 def frequency(request):
     """ Frequency for daplink connection """
     return request.param

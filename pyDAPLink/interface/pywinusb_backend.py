@@ -50,8 +50,14 @@ class PyWinUSB(Interface):
         self.rcv_data.append(data[1:])
     
     def open(self):
-        self.device.set_raw_data_handler(self.rx_handler)
         self.device.open()
+
+	reports = self.device.find_output_reports()
+        if len(reports) != 1:
+            raise ValueError('Unexpected USB reports')
+        self.report = reports[0]
+
+        self.device.set_raw_data_handler(self.rx_handler)
         
     @staticmethod
     def getConnectedInterfaces(vid, pid):
@@ -73,25 +79,16 @@ class PyWinUSB(Interface):
             
         boards = []
         for dev in all_mbed_devices:
-            try:
-                dev.open()
-                report = dev.find_output_reports()
-                if (len(report) == 1):
-                    new_board = PyWinUSB()
-                    new_board.report = report[0]
-                    new_board.vendor_name = dev.vendor_name
-                    new_board.product_name = dev.product_name
-                    new_board.serial_number = dev.serial_number
-                    new_board.vid = dev.vendor_id
-                    new_board.pid = dev.product_id
-                    new_board.path = dev.device_path
-                    new_board.device = dev
-                    new_board.device.set_raw_data_handler(new_board.rx_handler)
-                        
-                    boards.append(new_board)
-            except Exception as e:
-                logging.error("Receiving Exception: %s", e)
-                dev.close()
+            new_board = PyWinUSB()
+            new_board.vendor_name = dev.vendor_name
+            new_board.product_name = dev.product_name
+            new_board.serial_number = dev.serial_number
+            new_board.vid = dev.vendor_id
+            new_board.pid = dev.product_id
+            new_board.path = dev.device_path
+            new_board.device = dev
+
+            boards.append(new_board)
                 
         return boards
     

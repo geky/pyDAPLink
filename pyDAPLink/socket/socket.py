@@ -39,14 +39,14 @@ class Client(Connection):
     def __init__(self, address=None, timeout=None):
         self.address = address
 
-    def init(self):
+    def open(self):
         return
 
 class Server(object):
     def __init__(self, address=None, timeout=None):
         self.address = address
     
-    def init(self):
+    def open(self):
         return
 
     def accept(self):

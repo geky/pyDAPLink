@@ -47,11 +47,11 @@ class UnixConnection(Connection):
     def shutdown(self):
         self._isalive = False
         try:
-            self._socket.shutdown(2)
+            self._socket.shutdown(socket.SHUT_RDWR)
         except socket.error:
             pass
 
-    def uninit(self):
+    def close(self):
         self._socket.close()
 
 class UnixClient(UnixConnection, Client):
@@ -60,7 +60,7 @@ class UnixClient(UnixConnection, Client):
         self._isalive = False
         self._timeout = timeout
 
-    def init(self):
+    def open(self):
         conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         conn.settimeout(self._timeout)
         conn.connect(self.address)
@@ -73,7 +73,7 @@ class UnixServer(Server):
         self._isalive = False
         self._timeout = timeout
     
-    def init(self):
+    def open(self):
         # First make sure path to socket exists
         try:
             os.makedirs(os.path.dirname(self.address))
@@ -117,7 +117,7 @@ class UnixServer(Server):
         # Use pipe to interrupt accept call
         self._shutdown_pipe[0].sendall('shutdown')
 
-    def uninit(self):
+    def close(self):
         self._socket.close()
         self._shutdown_pipe[0].close()
         self._shutdown_pipe[1].close()

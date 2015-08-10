@@ -56,7 +56,7 @@ class DAPLinkServer(object):
         self._threads = set()
 
     def init(self):
-        self._server.init()
+        self._server.open()
 
         thread = Thread(target=self._server_task)
         thread.daemon = True
@@ -132,5 +132,5 @@ class DAPLinkServer(object):
         for thread in threads:
             thread.join()
 
-        self._server.uninit()
+        self._server.close()
 

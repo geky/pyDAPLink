@@ -64,10 +64,18 @@ class IfSelection(object):
             if id in self._owners and self._owners[id].is_alive():
                 return None
 
+            logging.debug('board %d selected' if id not in self._owners else
+                          'board %d selected because previous owner is defunct',
+                          id)
+
             self._owners[id] = threading.current_thread()
             return self._ifs[id]
 
     def deselect(self, id):
         with self._lock:
             del self._owners[id]
+            logging.debug('board %d deselected', id)
 
+    def __del__(self):
+        for id in self._owners.keys():
+            logging.debug('board %d deselected because owner is defunct', id)

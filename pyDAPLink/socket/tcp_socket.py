@@ -49,11 +49,11 @@ class TCPConnection(Connection):
     def shutdown(self):
         self._isalive = False
         try:
-            self._socket.shutdown(2)
+            self._socket.shutdown(socket.SHUT_RDWR)
         except socket.error:
             pass
 
-    def uninit(self):
+    def close(self):
         self._socket.close()
 
 class TCPClient(TCPConnection, Client):
@@ -62,7 +62,7 @@ class TCPClient(TCPConnection, Client):
         self._isalive = False
         self._timeout = timeout
 
-    def init(self):
+    def open(self):
         family, type, address = TCPSocket.getaddrinfo(self.address)
         conn = socket.socket(family, type)
         conn.settimeout(self._timeout)
@@ -78,7 +78,7 @@ class TCPServer(Server):
         self._isalive = False
         self._timeout = timeout
     
-    def init(self):
+    def open(self):
         # Create internal socket so we can interrupt our own accept call
         self._shutdown_pipe = socket_pair()
 
@@ -114,7 +114,7 @@ class TCPServer(Server):
         # Use pipe to interrupt accept call
         self._shutdown_pipe[0].sendall('shutdown')
 
-    def uninit(self):
+    def close(self):
         self._socket.close()
         self._shutdown_pipe[0].close()
         self._shutdown_pipe[1].close()
