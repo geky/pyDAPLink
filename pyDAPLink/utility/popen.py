@@ -15,14 +15,30 @@
  limitations under the License.
 """
 
+import subprocess
 from subprocess import Popen
 import os
 
 
 # Creating and disowning processes
 def popen_and_detach(args):
-    # Fortunately, OSs without setsid won't need to disown children
-    setsid = os.setsid if hasattr(os, 'setsid') else None
+    os_flags = {}
 
-    with open(os.devnull, 'w') as null:
-        return Popen(args, preexec_fn=setsid, stdout=null, stderr=null)
+    # Disowning processes in linux/mac
+    if hasattr(os, 'setsid'):
+        os_flags['preexec_fn'] = os.setsid
+
+    # Disowning processes in windows
+    if hasattr(subprocess, 'STARTUPINFO'):
+        # Detach the process
+        os_flags['creationflags'] = subprocess.CREATE_NEW_CONSOLE
+
+        # Hide the process console
+        startupinfo = subprocess.STARTUPINFO()
+	startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+        os_flags['startupinfo'] = startupinfo
+
+    # Redirect child's io
+    with open(os.devnull, 'w+') as null:
+        return Popen(args, stdin=null, stdout=null, stderr=null, **os_flags)
