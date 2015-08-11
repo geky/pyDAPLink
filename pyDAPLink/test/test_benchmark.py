@@ -46,6 +46,25 @@ def frequency(request):
     return request.param
 
 @pytest.fixture
+def board(request, frequency, vid, pid):
+    """ Board for benchmark """
+    client = DAPLink()
+    client.init()
+
+    boards = client.getConnectedBoards(vid, pid)
+    board = boards[0]
+    board.init()
+    packet_count = board.info('PACKET_COUNT')
+    board.setPacketCount(packet_count)
+
+    def cleanup():
+        board.uninit()
+    request.addfinalizer(cleanup)
+    client.uninit()
+
+    return board
+
+@pytest.fixture
 def write_data():
     """ Data to read/write """
     return [randint(0, 0xffffffff) for i in xrange(250)]
@@ -75,14 +94,7 @@ def enable_debug(board):
 
 
 class TestBenchmark:
-    def test_dp_writes(self, vid, pid, frequency, write_data, log):
-        client = DAPLink()
-        client.init()
-
-        boards = client.getConnectedBoards(vid, pid)
-        board = boards[0]
-        board.init(frequency)
-
+    def test_dp_writes(self, frequency, board, write_data, log):
         # write to DP
         start = time()
 
@@ -97,17 +109,7 @@ class TestBenchmark:
             "%.3f seconds" % (stop - start),
             "%.3f B/s" % ((4*len(write_data))/(stop - start)))
 
-        board.uninit()
-        client.uninit()
-
-    def test_dp_reads(self, vid, pid, frequency, write_data, log):
-        client = DAPLink()
-        client.init()
-
-        boards = client.getConnectedBoards(vid, pid)
-        board = boards[0]
-        board.init(frequency)
-
+    def test_dp_reads(self, frequency, board, write_data, log):
         # read from DP
         start = time()
 
@@ -121,20 +123,8 @@ class TestBenchmark:
             "%d bytes" % (4*len(write_data)),
             "%.3f seconds" % (stop - start),
             "%.3f B/s" % ((4*len(write_data))/(stop - start)))
-
-        board.uninit()
-        client.uninit()
         
-    def test_ap_writes(self, vid, pid, frequency, write_data, log):
-        client = DAPLink()
-        client.init()
-
-        boards = client.getConnectedBoards(vid, pid)
-        board = boards[0]
-        board.init(frequency)
-
-        enable_debug(board)
-
+    def test_ap_writes(self, frequency, board, write_data, log):
         # write to AP
         start = time()
 
@@ -149,17 +139,7 @@ class TestBenchmark:
             "%.3f seconds" % (stop - start),
             "%.3f B/s" % ((4*len(write_data))/(stop - start)))
 
-        board.uninit()
-        client.uninit()
-
-    def test_ap_reads(self, vid, pid, frequency, write_data, log):
-        client = DAPLink()
-        client.init()
-
-        boards = client.getConnectedBoards(vid, pid)
-        board = boards[0]
-        board.init(frequency)
-
+    def test_ap_reads(self, frequency, board, write_data, log):
         enable_debug(board)
 
         # read from AP
@@ -176,17 +156,7 @@ class TestBenchmark:
             "%.3f seconds" % (stop - start),
             "%.3f B/s" % ((4*len(write_data))/(stop - start)))
 
-        board.uninit()
-        client.uninit()
-
-    def test_mem_writes(self, vid, pid, frequency, write_data, log):
-        client = DAPLink()
-        client.init()
-
-        boards = client.getConnectedBoards(vid, pid)
-        board = boards[0]
-        board.init(frequency)
-
+    def test_mem_writes(self, frequency, board, write_data, log):
         enable_debug(board)
 
         # write to memory
@@ -203,17 +173,7 @@ class TestBenchmark:
             "%.3f seconds" % (stop - start),
             "%.3f B/s" % ((4*len(write_data))/(stop - start)))
 
-        board.uninit()
-        client.uninit()
-
-    def test_mem_reads(self, vid, pid, frequency, write_data, log):
-        client = DAPLink()
-        client.init()
-
-        boards = client.getConnectedBoards(vid, pid)
-        board = boards[0]
-        board.init(frequency)
-
+    def test_mem_reads(self, frequency, board, write_data, log):
         enable_debug(board)
 
         # read from memory
@@ -229,7 +189,4 @@ class TestBenchmark:
             "%d bytes" % (4*len(write_data)),
             "%.3f seconds" % (stop - start),
             "%.3f B/s" % ((4*len(write_data))/(stop - start)))
-
-        board.uninit()
-        client.uninit()
 

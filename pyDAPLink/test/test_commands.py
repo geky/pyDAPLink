@@ -122,7 +122,7 @@ class TestCommands:
         assert all(isinstance(id, Integral) for id in response['ids'])
 
     def test_board_select(self, command, vid, pid):
-        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid}) 
+        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
         id = response['ids'][0]
 
         response = command({'command': 'board_select',
@@ -132,7 +132,7 @@ class TestCommands:
         assert 'selected' in response and isinstance(response['selected'], bool)
 
     def test_board_deselect(self, command, vid, pid):
-        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid}) 
+        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
         id = response['ids'][0]
         command({'command': 'board_select', 'id': id})
 
@@ -141,7 +141,7 @@ class TestCommands:
         assert 'response' in response and response['response'] == 'board_deselect'
 
     def test_board_info(self, command, vid, pid):
-        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid}) 
+        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
         id = response['ids'][0]
 
         response = command({'command': 'board_info',
@@ -154,18 +154,18 @@ class TestCommands:
 
 
     def test_dap_init(self, command, vid, pid, frequency):
-        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid}) 
-        id = response['ids'][0] 
+        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
+        id = response['ids'][0]
         command({'command': 'board_select', 'id': id})
 
         response = command({'command': 'dap_init',
                             'frequency': frequency})
 
         assert 'response' in response and response['response'] == 'dap_init'
-        
+
     def test_dap_uninit(self, command, vid, pid, frequency):
-        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid}) 
-        id = response['ids'][0] 
+        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
+        id = response['ids'][0]
         command({'command': 'board_select', 'id': id})
         command({'command': 'dap_init', 'frequency': frequency})
 
@@ -174,16 +174,28 @@ class TestCommands:
         assert 'response' in response and response['response'] == 'dap_uninit'
 
     @pytest.mark.parametrize(('new_frequency',), [(10**6,), (10**7,), (10**8,)])
-    def test_dap_clock(self, command, vid, pid, frequency, new_frequency):
-        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid}) 
-        id = response['ids'][0] 
-        command({'command': 'board_select', 'id': id}) 
+    def test_dap_frequency(self, command, vid, pid, frequency, new_frequency):
+        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
+        id = response['ids'][0]
+        command({'command': 'board_select', 'id': id})
         command({'command': 'dap_init', 'frequency': frequency})
 
-        response = command({'command': 'dap_clock',
+        response = command({'command': 'dap_frequency',
                             'frequency': new_frequency})
 
-        assert 'response' in response and response['response'] == 'dap_clock'
+        assert 'response' in response and response['response'] == 'dap_frequency'
+
+    @pytest.mark.parametrize('packet_count', [1, 3, 5])
+    def test_dap_packet_count(self, command, vid, pid, frequency, packet_count):
+        response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
+        id = response['ids'][0]
+        command({'command': 'board_select', 'id': id})
+        command({'command': 'dap_init', 'frequency': frequency})
+
+        response = command({'command': 'dap_packet_count',
+                            'packet_count': packet_count})
+
+        assert 'response' in response and response['response'] == 'dap_packet_count'
 
     @pytest.mark.parametrize(('info_request', 'info_type'), [
         ('VENDOR_ID',            basestring),
@@ -207,7 +219,7 @@ class TestCommands:
         assert 'response' in response and response['response'] == 'dap_info'
         assert 'result' in response
         assert response['result'] is None or isinstance(response['result'], info_type)
-        
+
 
     def test_reset(self, command, vid, pid, frequency):
         response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
@@ -273,7 +285,7 @@ class TestCommands:
         assert 'response' in response and response['response'] == 'write_dp'
         response = command({'command': 'flush'})
         assert 'response' in response and response['response'] == 'flush'
-        
+
     @pytest.mark.parametrize('reg', ['CSW', 'TAR', 'IDR'])
     def test_read_ap(self, command, vid, pid, frequency, reg):
         response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
@@ -311,8 +323,8 @@ class TestCommands:
         assert 'response' in response and response['response'] == 'flush'
 
     @pytest.mark.parametrize(('address', 'size'), [
-        ('DCRDR', 8), 
-        ('DCRDR', 16), 
+        ('DCRDR', 8),
+        ('DCRDR', 16),
         ('DCRDR', 32)])
     def test_read_mem(self, command, vid, pid, frequency, address, size):
         response = command({'command': 'board_enumerate', 'vid': vid, 'pid': pid})
@@ -373,7 +385,7 @@ class TestCommands:
         assert 'reads' in response and isinstance(response['reads'], list)
         assert len(response['reads']) == 1
         assert all(isinstance(read, list) for read in response['reads'])
-        assert all(isinstance(word, Integral) for read in response['reads'] 
+        assert all(isinstance(word, Integral) for read in response['reads']
                                          for word in read)
 
     @pytest.mark.parametrize(('address', 'count'), [('DCRDR', 1)])

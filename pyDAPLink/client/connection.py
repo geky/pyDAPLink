@@ -55,7 +55,8 @@ class DAPLinkClientConnection(object):
         return ('<%s %04x:%04x:%x>' % 
                 (self.__class__.__name__, self.vid, self.pid, self.iid))
 
-    def init(self, frequency=None, lock_attempts=5, new_socket=True):
+    def init(self, frequency=None, packet_count=None,
+             lock_attempts=5, new_socket=True):
         """ 
         Initialize daplink connection to a specific device. 
 
@@ -74,7 +75,9 @@ class DAPLinkClientConnection(object):
         # We default to locking the device. It can be explicitly unlocked
         # to allow multiprocess access
         self.lock()
-        self._command('dap_init', {'frequency': frequency} if frequency else {})
+        self._command('dap_init', {k: v for k, v in
+                                   [('frequency', frequency),
+                                    ('packet_count', packet_count)] if v})
 
     def uninit(self):
         with self:
@@ -160,7 +163,11 @@ class DAPLinkClientConnection(object):
 
     def setClock(self, frequency):
         with self:
-            self._command('dap_clock', {'frequency': frequency})
+            self._command('dap_frequency', {'frequency': frequency})
+
+    def setPacketCount(self, packet_count):
+        with self:
+            self._command('dap_packet_count', {'packet_count': packet_count})
 
     def setDeferredTransfer(self, enable):
         """

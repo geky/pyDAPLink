@@ -41,9 +41,14 @@ def pid():
     """ PID of device for testing """
     return 0x0204
 
-@pytest.fixture(params=[10**6, 10**7, 10**8, 10**9])
+@pytest.fixture(params=[10**6, 10**7, 10**8])
 def frequency(request):
     """ Frequency for daplink connection """
+    return request.param
+
+@pytest.fixture(params=[1, 3, 5])
+def packet_count(request):
+    """ Packet count for daplink connection """
     return request.param
 
 @pytest.fixture
@@ -58,7 +63,7 @@ def access_type(request):
 
 
 class TestClients:
-    def test_basic_client(self, vid, pid, frequency, access_type, write_data):
+    def test_basic_client(self, vid, pid, frequency, packet_count, access_type, write_data):
         client = DAPLink()
         client.init()
 
@@ -70,7 +75,7 @@ class TestClients:
             assert hasattr(board, 'serial_number') and isinstance(board.serial_number, basestring)
 
         board = boards[0]
-        board.init(frequency)
+        board.init(frequency, packet_count)
         assert board.locked
 
         if access_type == 'deferred':

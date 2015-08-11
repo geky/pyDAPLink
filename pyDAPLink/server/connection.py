@@ -137,14 +137,21 @@ class DAPLinkServerConnection(object):
     def dap_init(self, data):
         """ 
         Initializes a DAPLink connection. 
-        The DAP uses the frequency if specified
+        The DAP uses the frequency and packet_count if specified
         """
-        freq = data.get('frequency')
+        frequency = data.get('frequency')
+        packet_count = data.get('packet_count')
 
         interface = self.ifs[self.id]
+        if packet_count:
+            interface.setPacketCount(packet_count)
         interface.open()
+
         self.dap = DAPLinkCore(interface)
-        self.dap.init(*[freq] if freq else [])
+        if frequency:
+            self.dap.init(frequency)
+        else:
+            self.dap.init()
 
     @command
     def dap_uninit(self, data):
@@ -155,9 +162,14 @@ class DAPLinkServerConnection(object):
         interface.close()
 
     @command
-    def dap_clock(self, data):
+    def dap_frequency(self, data):
         """ Change a DAPLink connection's frequency. """
         self.dap.setClock(data['frequency'])
+
+    @command
+    def dap_packet_count(self, data):
+        """ Change a DAPLink connection's packet count. """
+        self.dap.interface.setPacketCount(data['packet_count'])
 
     @command
     def dap_info(self, data):
