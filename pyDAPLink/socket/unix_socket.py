@@ -86,7 +86,8 @@ class UnixServer(Server):
 
         # Socket can get left if previous server failed to exit cleanly
         try:
-            if stat.S_ISSOCK(os.stat(self.address).st_mode):
+            if (stat.S_ISSOCK(os.stat(self.address).st_mode) and
+                os.access(self.address, os.W_OK)):
                 os.unlink(self.address)
         except OSError:
             pass

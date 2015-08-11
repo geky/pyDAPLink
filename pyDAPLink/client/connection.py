@@ -121,9 +121,11 @@ class DAPLinkClientConnection(object):
 
     def unlock(self):
         """ Unlocks device. """
+        if self._nested_locks == 1:
+            self._command('board_deselect')
+
         if self._nested_locks > 0:
             self._nested_locks -= 1
-            self._command('board_deselect')
 
     # Context managements handles locking device
     def __enter__(self):
