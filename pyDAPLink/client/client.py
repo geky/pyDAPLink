@@ -15,7 +15,7 @@
  limitations under the License.
 """
 
-from .connection import DAPLinkClientConnection
+from .transport import DAPLinkClientTransport
 from ..interface import INTERFACE, default_interface
 from ..socket import SOCKET, socket_by_address, default_socket
 from ..utility import encode, decode
@@ -117,7 +117,7 @@ class DAPLinkClient(object):
     def getConnectedBoards(self, vid, pid):
         data = self.command('board_enumerate', {'vid': vid, 'pid': pid})
 
-        boards = [DAPLinkClientConnection(self, vid, pid, id)
+        boards = [DAPLinkClientTransport(self, vid, pid, id)
                   for id in data['ids']]
 
         return boards

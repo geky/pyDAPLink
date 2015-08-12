@@ -43,7 +43,7 @@ def command(func):
     COMMANDS[command] = wrapper
 
 
-class DAPLinkServerConnection(object):
+class DAPLinkServerTransport(object):
     def __init__(self, interface):
         """ Create connection. """
         self._interface = interface

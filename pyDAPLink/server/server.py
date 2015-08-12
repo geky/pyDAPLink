@@ -15,7 +15,7 @@
  limitations under the License.
 """
 
-from .connection import DAPLinkServerConnection
+from .transport import DAPLinkServerTransport
 from ..utility import encode, decode
 from ..errors import CommandError
 from ..interface import INTERFACE, default_interface
@@ -89,7 +89,7 @@ class DAPLinkServer(object):
             self._threads.discard(threading.current_thread())
 
     def _client_task(self, client):
-        connection = DAPLinkServerConnection(self._interface)
+        connection = DAPLinkServerTransport(self._interface)
         connection.init()
 
         try:

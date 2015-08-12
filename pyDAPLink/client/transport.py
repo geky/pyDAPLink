@@ -30,7 +30,7 @@ READ_NOW = 2
 READ_END = 3
 
 
-class DAPLinkClientConnection(object):
+class DAPLinkClientTransport(object):
     """
     Implements a DAPLink connection to a specific board.
     Returned from DAPLinkClient.getConnectedBoards, 

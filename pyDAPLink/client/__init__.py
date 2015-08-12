@@ -16,5 +16,5 @@
 """
 
 from .client import DAPLinkClient
-from .connection import READ_NOW, READ_START, READ_END
+from .transport import READ_NOW, READ_START, READ_END
 
