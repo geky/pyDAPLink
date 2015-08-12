@@ -249,15 +249,14 @@ class DAPLinkClientConnection(object):
         Complete write command
         """
         if not self.deferred_transfer:
-            self._command('flush')
+            self.flush()
 
     def _read(self):
         """
         Complete read command of specified size
         """
         if not self._buffer:
-            data = self._command('flush')
-            self._buffer.extend(data['reads'])
+            self.flush()
 
         return self._buffer.pop(0)
 
@@ -266,7 +265,9 @@ class DAPLinkClientConnection(object):
         Clear buffer and flush server
         """
         with self:
-            self._command('flush')
-            self._buffer = []
+            data = self._command('flush')
+
+            if 'reads' in data:
+                self._buffer.extend(data['reads'])
 
         
